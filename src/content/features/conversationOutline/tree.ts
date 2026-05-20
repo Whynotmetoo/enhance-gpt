@@ -147,6 +147,32 @@ function outlineTurnWeight(turn: DomOutlineTurn): number {
   return turn.outlineWeight ?? turn.outlineItems.length;
 }
 
+function uniqueDescendantLeafId(nodes: ReadonlyMap<string, OutlineTreeNode>, nodeId: string): string | null {
+  const seen = new Set<string>();
+  let currentId = nodeId;
+
+  while (!seen.has(currentId)) {
+    seen.add(currentId);
+    const node = nodes.get(currentId);
+    if (!node) {
+      return currentId;
+    }
+
+    const existingChildren = node.children.filter((childId) => nodes.has(childId));
+    if (existingChildren.length === 0) {
+      return currentId;
+    }
+
+    if (existingChildren.length > 1) {
+      return null;
+    }
+
+    currentId = existingChildren[0];
+  }
+
+  return nodeId;
+}
+
 function activeDomTurnId(pathTurns: DomOutlineTurn[]): string {
   const lastTurn = pathTurns[pathTurns.length - 1];
   const branchParentId = lastTurn.parentId;
@@ -168,6 +194,24 @@ function activeDomTurnId(pathTurns: DomOutlineTurn[]): string {
   ).id;
 }
 
+function activeApiDomTurnId(tree: OutlineTree, pathTurns: DomOutlineTurn[]): string {
+  const mountedAssistant = [...pathTurns]
+    .reverse()
+    .find((turn) => turn.role === "assistant" && turn.hasMountedMessage && tree.nodes.has(turn.id));
+  if (mountedAssistant) {
+    return mountedAssistant.id;
+  }
+
+  const userAnchor = [...pathTurns]
+    .reverse()
+    .find((turn) => turn.role === "user" && tree.nodes.has(turn.id));
+  if (userAnchor) {
+    return uniqueDescendantLeafId(tree.nodes, userAnchor.id) ?? (tree.activeNodeId ?? userAnchor.id);
+  }
+
+  return activeDomTurnId(pathTurns);
+}
+
 export function mergeDomOutlineTurns(
   tree: OutlineTree,
   turns: DomOutlineTurn[],
@@ -181,8 +225,11 @@ export function mergeDomOutlineTurns(
   const nodes = cloneNodes(tree.nodes);
   let rootIds = [...tree.rootIds];
   let previousTurnId: string | null = null;
-  let changed = tree.activeNodeId !== activeDomTurnId(pathTurns);
   const preserveExistingStructure = options.preserveExistingStructure ?? false;
+  const nextActiveNodeId = preserveExistingStructure
+    ? activeApiDomTurnId(tree, pathTurns)
+    : activeDomTurnId(pathTurns);
+  let changed = tree.activeNodeId !== nextActiveNodeId;
 
   pathTurns.forEach((turn) => {
     const existing = nodes.get(turn.id);
@@ -249,7 +296,7 @@ export function mergeDomOutlineTurns(
 
   return {
     ...tree,
-    activeNodeId: activeDomTurnId(pathTurns),
+    activeNodeId: nextActiveNodeId,
     nodes,
     rootIds
   };

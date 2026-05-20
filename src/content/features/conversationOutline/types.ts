@@ -39,6 +39,7 @@ export type OutlineTree = {
 export type DomOutlineTurn = {
   canPruneOutlineItems?: boolean;
   element: HTMLElement;
+  hasMountedMessage?: boolean;
   id: string;
   outlineWeight?: number;
   outlineItems: OutlineItem[];

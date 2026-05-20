@@ -190,8 +190,17 @@ function bestOutlineTurn(turns: DomOutlineTurn[]): DomOutlineTurn {
   );
 }
 
+function isVirtualizedTurn(turn: HTMLElement): boolean {
+  return Boolean(turn.closest<HTMLElement>("[data-is-intersecting='false']"));
+}
+
 function canPruneOutlineItems(turn: HTMLElement): boolean {
-  return isVisible(turn) && turn.textContent.trim().length > 0;
+  if (!isVisible(turn) || isVirtualizedTurn(turn)) {
+    return false;
+  }
+
+  const message = messageElementFromTurn(turn, "assistant");
+  return Boolean(message && isVisible(message) && message.textContent.trim().length > 0);
 }
 
 export function collectDomOutlineTurns(): DomOutlineTurn[] {
@@ -202,7 +211,9 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
 
   collectTurnElements().forEach((turn) => {
     const role = turnRole(turn);
-    const id = messageIdFromTurn(turn, role);
+    const message = messageElementFromTurn(turn, role);
+    const id = message?.getAttribute("data-message-id") ?? turn.getAttribute("data-turn-id");
+    const hasMountedMessage = Boolean(message);
     const turnVisible = isVisible(turn);
 
     if (!id || !role) {
@@ -215,6 +226,7 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
       turns.push({
         canPruneOutlineItems: false,
         element: turn,
+        hasMountedMessage,
         id,
         outlineItems: turnVisible
           ? [{
@@ -239,7 +251,8 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
       const responseRoots = paragenRoots(turn);
       if (responseRoots.length > 1) {
         const responseTurns = responseRoots.flatMap((responseRoot) => {
-          const responseId = messageIdFromTurn(responseRoot, "assistant");
+          const responseMessage = messageElementFromTurn(responseRoot, "assistant");
+          const responseId = responseMessage?.getAttribute("data-message-id") ?? responseRoot.getAttribute("data-turn-id");
           if (!responseId) {
             return [];
           }
@@ -248,6 +261,7 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
           return [{
             canPruneOutlineItems: canPruneOutlineItems(responseRoot),
             element: responseRoot,
+            hasMountedMessage: Boolean(responseMessage),
             id: responseId,
             outlineItems: answerStructureItems(responseRoot, answerIndex),
             outlineWeight: answerHeadingWeight(responseRoot),
@@ -267,6 +281,7 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
       turns.push({
         canPruneOutlineItems: canPruneOutlineItems(turn),
         element: turn,
+        hasMountedMessage,
         id,
         outlineItems: turnVisible ? answerStructureItems(turn, answerIndex) : [],
         outlineWeight: turnVisible ? answerHeadingWeight(turn) : 0,

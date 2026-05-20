@@ -31,6 +31,8 @@ type OutlineDepthStyle = CSSProperties & {
 
 const initialActiveRefreshDelays = [80, 240, 600, 1000];
 const domFallbackDelayMs = 8_000;
+const domMergeDebounceMs = 150;
+const apiDomMergeDebounceMs = 50;
 
 function turnsOverlapTree(turns: DomOutlineTurn[], tree: OutlineTree): boolean {
   if (tree.nodes.size === 0) {
@@ -104,10 +106,16 @@ export function ConversationOutline(): ReactElement | null {
     fetchConversationOutlineTreeWithRetry(conversationId, controller.signal, conversationLocation.changedAt)
       .then((tree) => {
         if (!controller.signal.aborted) {
+          const turns = collectDomOutlineTurns();
+          const mergedTree =
+            tree && treeHasOutlineItems(tree) && turns.length > 0
+              ? mergeDomOutlineTurns(tree, turns, { preserveExistingStructure: true })
+              : tree;
+
           setSource({
             conversationId,
-            mode: treeHasOutlineItems(tree) ? "api" : "dom",
-            tree
+            mode: treeHasOutlineItems(mergedTree) ? "api" : "dom",
+            tree: mergedTree
           });
         }
       })
@@ -186,7 +194,7 @@ export function ConversationOutline(): ReactElement | null {
           };
         });
       };
-      const scheduleUpdate = debounce(update, 150);
+      const scheduleUpdate = debounce(update, domMergeDebounceMs);
       const observer = new MutationObserver(scheduleUpdate);
 
       update();
@@ -220,7 +228,7 @@ export function ConversationOutline(): ReactElement | null {
         };
       });
     };
-    const scheduleUpdate = debounce(update, 150);
+    const scheduleUpdate = debounce(update, apiDomMergeDebounceMs);
     const observer = new MutationObserver(scheduleUpdate);
 
     update();
