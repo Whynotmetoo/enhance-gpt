@@ -22,6 +22,7 @@ export type OutlineSource = {
 
 export type OutlineTreeNode = {
   children: string[];
+  domTurnId?: string | null;
   element: HTMLElement | null;
   id: string;
   outlineItems: OutlineItem[];
@@ -38,6 +39,7 @@ export type OutlineTree = {
 
 export type DomOutlineTurn = {
   canPruneOutlineItems?: boolean;
+  domTurnId?: string | null;
   element: HTMLElement;
   hasMountedMessage?: boolean;
   id: string;
