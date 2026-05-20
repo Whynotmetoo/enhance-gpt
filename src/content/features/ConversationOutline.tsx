@@ -42,6 +42,18 @@ function turnsOverlapTree(turns: DomOutlineTurn[], tree: OutlineTree): boolean {
   return turns.some((turn) => tree.nodes.has(turn.id));
 }
 
+function treeWithDomTurns(conversationId: string, turns: DomOutlineTurn[], tree: OutlineTree | null): OutlineTree | null {
+  if (turns.length === 0) {
+    return tree;
+  }
+
+  if (tree && !turnsOverlapTree(turns, tree)) {
+    return tree;
+  }
+
+  return mergeDomOutlineTurns(tree ?? createEmptyOutlineTree(conversationId), turns);
+}
+
 export function ConversationOutline(): ReactElement | null {
   const conversationLocation = useConversationLocation();
   const { conversationId } = conversationLocation;
@@ -82,7 +94,8 @@ export function ConversationOutline(): ReactElement | null {
 
     const cachedTree = cachedDomOutlineTree(conversationId);
     if (cachedTree) {
-      setSource({ conversationId, mode: "dom", tree: cachedTree });
+      const turns = collectDomOutlineTurns();
+      setSource({ conversationId, mode: "dom", tree: treeWithDomTurns(conversationId, turns, cachedTree) });
       setActiveId(null);
       setPendingScroll(null);
       setCachedDomConversationId(conversationId);
@@ -90,7 +103,8 @@ export function ConversationOutline(): ReactElement | null {
     }
 
     if (shouldUseImmediateDomFallback) {
-      setSource({ conversationId, mode: "dom", tree: null });
+      const turns = collectDomOutlineTurns();
+      setSource({ conversationId, mode: "dom", tree: treeWithDomTurns(conversationId, turns, null) });
       setActiveId(null);
       setPendingScroll(null);
       setCachedDomConversationId(conversationId);
@@ -121,7 +135,8 @@ export function ConversationOutline(): ReactElement | null {
       })
       .catch(() => {
         if (!controller.signal.aborted) {
-          setSource({ conversationId, mode: "dom", tree: null });
+          const turns = collectDomOutlineTurns();
+          setSource({ conversationId, mode: "dom", tree: treeWithDomTurns(conversationId, turns, null) });
           setCachedDomConversationId(null);
         }
       });
