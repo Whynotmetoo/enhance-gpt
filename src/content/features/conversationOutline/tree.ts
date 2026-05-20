@@ -212,17 +212,56 @@ function activeApiDomTurnId(tree: OutlineTree, pathTurns: DomOutlineTurn[]): str
   return activeDomTurnId(pathTurns);
 }
 
+function remappedParentId(parentId: string | null | undefined, idAliases: ReadonlyMap<string, string>): string | null | undefined {
+  return parentId ? (idAliases.get(parentId) ?? parentId) : parentId;
+}
+
+function existingNodeIdForDomTurn(nodes: ReadonlyMap<string, OutlineTreeNode>, turn: DomOutlineTurn): string | null {
+  if (nodes.has(turn.id)) {
+    return turn.id;
+  }
+
+  if (turn.role !== "assistant" || turn.hasMountedMessage || turn.outlineItems.length > 0 || !turn.domTurnId) {
+    return null;
+  }
+
+  const matchingNodeIds = Array.from(nodes.values())
+    .filter((node) => node.role === "assistant" && node.domTurnId === turn.domTurnId)
+    .map((node) => node.id);
+
+  return matchingNodeIds.length === 1 ? matchingNodeIds[0] : null;
+}
+
+function remapTurnsByDomTurnId(
+  nodes: ReadonlyMap<string, OutlineTreeNode>,
+  turns: DomOutlineTurn[]
+): DomOutlineTurn[] {
+  const idAliases = new Map<string, string>();
+
+  return turns.map((turn) => {
+    const parentId = remappedParentId(turn.parentId, idAliases);
+    const replacementId = existingNodeIdForDomTurn(nodes, turn);
+    const id = replacementId ?? turn.id;
+
+    if (id !== turn.id) {
+      idAliases.set(turn.id, id);
+    }
+
+    return id === turn.id && parentId === turn.parentId ? turn : { ...turn, id, parentId };
+  });
+}
+
 export function mergeDomOutlineTurns(
   tree: OutlineTree,
   turns: DomOutlineTurn[],
   options: MergeDomOutlineTurnsOptions = {}
 ): OutlineTree {
-  const pathTurns = turns.filter((turn) => turn.id.length > 0);
+  const nodes = cloneNodes(tree.nodes);
+  const pathTurns = remapTurnsByDomTurnId(nodes, turns.filter((turn) => turn.id.length > 0));
   if (pathTurns.length === 0) {
     return tree;
   }
 
-  const nodes = cloneNodes(tree.nodes);
   let rootIds = [...tree.rootIds];
   let previousTurnId: string | null = null;
   const preserveExistingStructure = options.preserveExistingStructure ?? false;
@@ -247,8 +286,10 @@ export function mergeDomOutlineTurns(
         turn.outlineItems,
         turn.canPruneOutlineItems ?? false
       );
+      const nextDomTurnId = turn.domTurnId ?? existing.domTurnId;
       changed ||= existing.role !== turn.role;
       changed ||= existing.parentId !== parentId;
+      changed ||= existing.domTurnId !== nextDomTurnId;
       changed ||= connectedElement(existing.element) !== connectedElement(nextElement);
       changed ||= !sameOutlineItems(existing.outlineItems, nextOutlineItems);
       if (existing.parentId && existing.parentId !== parentId) {
@@ -262,6 +303,7 @@ export function mergeDomOutlineTurns(
 
       nodes.set(turn.id, {
         ...existing,
+        domTurnId: nextDomTurnId,
         element: nextElement,
         outlineItems: nextOutlineItems,
         parentId,
@@ -271,6 +313,7 @@ export function mergeDomOutlineTurns(
       changed = true;
       nodes.set(turn.id, {
         children: [],
+        domTurnId: turn.domTurnId,
         element: turn.element,
         id: turn.id,
         outlineItems: turn.outlineItems,

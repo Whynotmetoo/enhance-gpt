@@ -62,6 +62,10 @@ function turnRole(turn: HTMLElement): "user" | "assistant" | null {
   return messageRole === "user" || messageRole === "assistant" ? messageRole : null;
 }
 
+function domTurnIdFromElement(element: HTMLElement): string | null {
+  return element.getAttribute("data-turn-id") ?? element.closest<HTMLElement>("[data-turn-id]")?.getAttribute("data-turn-id") ?? null;
+}
+
 function stableOutlineId(element: HTMLElement, prefix: string, index: number): string {
   const existing = element.getAttribute(outlineIdAttribute);
   if (existing) {
@@ -212,7 +216,8 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
   collectTurnElements().forEach((turn) => {
     const role = turnRole(turn);
     const message = messageElementFromTurn(turn, role);
-    const id = message?.getAttribute("data-message-id") ?? turn.getAttribute("data-turn-id");
+    const domTurnId = domTurnIdFromElement(turn);
+    const id = message?.getAttribute("data-message-id") ?? domTurnId;
     const hasMountedMessage = Boolean(message);
     const turnVisible = isVisible(turn);
 
@@ -225,6 +230,7 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
       answerIndex = 0;
       turns.push({
         canPruneOutlineItems: false,
+        domTurnId,
         element: turn,
         hasMountedMessage,
         id,
@@ -252,7 +258,8 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
       if (responseRoots.length > 1) {
         const responseTurns = responseRoots.flatMap((responseRoot) => {
           const responseMessage = messageElementFromTurn(responseRoot, "assistant");
-          const responseId = responseMessage?.getAttribute("data-message-id") ?? responseRoot.getAttribute("data-turn-id");
+          const responseDomTurnId = domTurnIdFromElement(responseRoot);
+          const responseId = responseMessage?.getAttribute("data-message-id") ?? responseDomTurnId;
           if (!responseId) {
             return [];
           }
@@ -260,6 +267,7 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
           answerIndex += 1;
           return [{
             canPruneOutlineItems: canPruneOutlineItems(responseRoot),
+            domTurnId: responseDomTurnId,
             element: responseRoot,
             hasMountedMessage: Boolean(responseMessage),
             id: responseId,
@@ -280,6 +288,7 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
       answerIndex += 1;
       turns.push({
         canPruneOutlineItems: canPruneOutlineItems(turn),
+        domTurnId,
         element: turn,
         hasMountedMessage,
         id,
