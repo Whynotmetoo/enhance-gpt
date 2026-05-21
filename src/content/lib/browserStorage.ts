@@ -1,4 +1,5 @@
 import { PROMPTS_STORAGE_KEY, type SavedPrompt } from "../../shared/promptTypes";
+import { EXTENSION_NAMESPACE } from "../../shared/constants";
 
 type StorageArea = {
   get: (
@@ -21,7 +22,9 @@ type ExtensionApi = {
   };
 };
 
-const fallbackStorageKey = `enhance-chatgpt:${PROMPTS_STORAGE_KEY}`;
+const legacyExtensionNamespace = "enhance-chatgpt";
+const fallbackStorageKey = fallbackStorageKeyFor(PROMPTS_STORAGE_KEY);
+const legacyFallbackStorageKey = legacyFallbackStorageKeyFor(PROMPTS_STORAGE_KEY);
 const chatGptSessionPath = "/api/auth/session";
 
 type ChatGptSession = {
@@ -133,9 +136,19 @@ function promptStorageKeyForUser(userId: string): string {
 }
 
 function fallbackStorageKeyFor(storageKey: string): string {
-  return storageKey === PROMPTS_STORAGE_KEY
-    ? fallbackStorageKey
-    : `enhance-chatgpt:${storageKey}`;
+  return `${EXTENSION_NAMESPACE}:${storageKey}`;
+}
+
+function legacyFallbackStorageKeyFor(storageKey: string): string {
+  return `${legacyExtensionNamespace}:${storageKey}`;
+}
+
+function loadFallbackStorageItem(storageKey: string): string | null {
+  return (
+    globalThis.localStorage?.getItem(fallbackStorageKeyFor(storageKey)) ??
+    globalThis.localStorage?.getItem(legacyFallbackStorageKeyFor(storageKey)) ??
+    null
+  );
 }
 
 function isChatGptHost(hostname: string): boolean {
@@ -169,6 +182,7 @@ async function currentPromptStorageKey(): Promise<string> {
 async function removeLegacyPrompts(): Promise<void> {
   await storageRemove(PROMPTS_STORAGE_KEY);
   globalThis.localStorage?.removeItem(fallbackStorageKey);
+  globalThis.localStorage?.removeItem(legacyFallbackStorageKey);
 }
 
 export async function loadPrompts(): Promise<SavedPrompt[]> {
@@ -191,7 +205,7 @@ export async function loadPrompts(): Promise<SavedPrompt[]> {
     }
   }
 
-  const raw = globalThis.localStorage?.getItem(fallbackStorageKeyFor(storageKey));
+  const raw = loadFallbackStorageItem(storageKey);
   if (!raw) {
     return [];
   }
@@ -230,7 +244,7 @@ export async function loadStorageFlag(key: string): Promise<boolean> {
     return extensionValue;
   }
 
-  return globalThis.localStorage?.getItem(fallbackStorageKeyFor(key)) === "true";
+  return loadFallbackStorageItem(key) === "true";
 }
 
 export async function saveStorageFlag(key: string, value: boolean): Promise<void> {

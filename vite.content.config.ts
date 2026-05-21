@@ -17,7 +17,7 @@ export default defineConfig({
     lib: {
       entry: resolve(rootDir, "src/content/main.tsx"),
       formats: ["iife"],
-      name: "EnhanceChatGPTContent",
+      name: "EnhanceGPTContent",
       cssFileName: "assets/content",
       fileName: () => "assets/content.js"
     },

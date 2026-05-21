@@ -1,20 +1,20 @@
 (() => {
-  const bridgeKey = "__enhanceChatGPTApiHeaderBridgeInstalled";
+  const bridgeKey = "__enhanceGPTApiHeaderBridgeInstalled";
   if (window[bridgeKey]) {
     return;
   }
 
   window[bridgeKey] = true;
 
-  const requestSource = "enhance-chatgpt:fetch-conversation";
-  const responseSource = "enhance-chatgpt:fetch-conversation-response";
-  const conversationActionRequestSource = "enhance-chatgpt:conversation-action";
-  const conversationActionResponseSource = "enhance-chatgpt:conversation-action-response";
-  const clearAllConversationsRequestSource = "enhance-chatgpt:clear-all-conversations";
-  const clearAllConversationsResponseSource = "enhance-chatgpt:clear-all-conversations-response";
-  const locationChangeSource = "enhance-chatgpt:location-changed";
-  const conversationActivitySource = "enhance-chatgpt:conversation-activity";
-  const conversationListActivitySource = "enhance-chatgpt:conversation-list-activity";
+  const requestSource = "enhance-gpt:fetch-conversation";
+  const responseSource = "enhance-gpt:fetch-conversation-response";
+  const conversationActionRequestSource = "enhance-gpt:conversation-action";
+  const conversationActionResponseSource = "enhance-gpt:conversation-action-response";
+  const clearAllConversationsRequestSource = "enhance-gpt:clear-all-conversations";
+  const clearAllConversationsResponseSource = "enhance-gpt:clear-all-conversations-response";
+  const locationChangeSource = "enhance-gpt:location-changed";
+  const conversationActivitySource = "enhance-gpt:conversation-activity";
+  const conversationListActivitySource = "enhance-gpt:conversation-list-activity";
   const conversationCache = new Map();
   const backendApiHeaders = new Map();
   const pendingConversations = new Map();
@@ -109,7 +109,7 @@
         return;
       }
 
-      window.history[methodName] = function enhanceChatGPTHistoryMethod() {
+      window.history[methodName] = function enhanceGPTHistoryMethod() {
         const result = originalMethod.apply(this, arguments);
         scheduleLocationChanged(Date.now());
         return result;
@@ -374,7 +374,7 @@
   }
 
   function wrapFetch(fetchImplementation) {
-    return function enhanceChatGPTFetch(input, init) {
+    return function enhanceGPTFetch(input, init) {
       const conversationId = conversationIdFromInput(input, init);
       const isConversationStateRequest = isConversationStateInput(input);
       const isConversationListRequest = isConversationListInput(input, init);
