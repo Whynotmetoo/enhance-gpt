@@ -22,7 +22,7 @@ function mount(): void {
 
   const container = document.createElement("div");
   container.id = rootId;
-  container.setAttribute("data-enhance-chatgpt", "root");
+  container.setAttribute("data-enhance-gpt", "root");
   host.append(container);
 
   createRoot(container).render(

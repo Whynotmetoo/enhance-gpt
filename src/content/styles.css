@@ -23,7 +23,7 @@
   --ecg-intro-focus: #2f6fed;
 }
 
-#enhance-chatgpt-root {
+#enhance-gpt-root {
   color: var(--ecg-text);
   font: inherit;
   pointer-events: none;

@@ -1,12 +1,14 @@
+import { EXTENSION_NAMESPACE } from "../../shared/constants";
+
 const pageContextScript = "page-context.js";
-const requestSource = "enhance-chatgpt:fetch-conversation";
-const responseSource = "enhance-chatgpt:fetch-conversation-response";
-const conversationActionRequestSource = "enhance-chatgpt:conversation-action";
-const conversationActionResponseSource = "enhance-chatgpt:conversation-action-response";
-const clearAllConversationsRequestSource = "enhance-chatgpt:clear-all-conversations";
-const clearAllConversationsResponseSource = "enhance-chatgpt:clear-all-conversations-response";
-const conversationActivitySource = "enhance-chatgpt:conversation-activity";
-const conversationListActivitySource = "enhance-chatgpt:conversation-list-activity";
+const requestSource = `${EXTENSION_NAMESPACE}:fetch-conversation`;
+const responseSource = `${EXTENSION_NAMESPACE}:fetch-conversation-response`;
+const conversationActionRequestSource = `${EXTENSION_NAMESPACE}:conversation-action`;
+const conversationActionResponseSource = `${EXTENSION_NAMESPACE}:conversation-action-response`;
+const clearAllConversationsRequestSource = `${EXTENSION_NAMESPACE}:clear-all-conversations`;
+const clearAllConversationsResponseSource = `${EXTENSION_NAMESPACE}:clear-all-conversations-response`;
+const conversationActivitySource = `${EXTENSION_NAMESPACE}:conversation-activity`;
+const conversationListActivitySource = `${EXTENSION_NAMESPACE}:conversation-list-activity`;
 
 export type ConversationActivity = {
   conversationId: string | null;

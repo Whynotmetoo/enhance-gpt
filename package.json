@@ -1,5 +1,5 @@
 {
-  "name": "enhance-chatgpt",
+  "name": "enhance-gpt",
   "version": "0.2.0",
   "description": "A native-feeling UI enhancement layer for the ChatGPT web app.",
   "private": true,
