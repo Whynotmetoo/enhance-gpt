@@ -25,6 +25,7 @@ export type OutlineTreeNode = {
   domTurnId?: string | null;
   element: HTMLElement | null;
   id: string;
+  messageId?: string | null;
   outlineItems: OutlineItem[];
   parentId: string | null;
   role: OutlineNodeRole;
@@ -43,6 +44,7 @@ export type DomOutlineTurn = {
   element: HTMLElement;
   hasMountedMessage?: boolean;
   id: string;
+  messageId?: string | null;
   outlineWeight?: number;
   outlineItems: OutlineItem[];
   parentId?: string | null;

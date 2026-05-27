@@ -217,7 +217,8 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
     const role = turnRole(turn);
     const message = messageElementFromTurn(turn, role);
     const domTurnId = domTurnIdFromElement(turn);
-    const id = message?.getAttribute("data-message-id") ?? domTurnId;
+    const messageId = message?.getAttribute("data-message-id") ?? null;
+    const id = messageId ?? domTurnId;
     const hasMountedMessage = Boolean(message);
     const turnVisible = isVisible(turn);
 
@@ -234,6 +235,7 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
         element: turn,
         hasMountedMessage,
         id,
+        messageId,
         outlineItems: turnVisible
           ? [{
               id: stableOutlineId(turn, "user", userIndex),
@@ -259,7 +261,8 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
         const responseTurns = responseRoots.flatMap((responseRoot) => {
           const responseMessage = messageElementFromTurn(responseRoot, "assistant");
           const responseDomTurnId = domTurnIdFromElement(responseRoot);
-          const responseId = responseMessage?.getAttribute("data-message-id") ?? responseDomTurnId;
+          const responseMessageId = responseMessage?.getAttribute("data-message-id") ?? null;
+          const responseId = responseMessageId ?? responseDomTurnId;
           if (!responseId) {
             return [];
           }
@@ -271,6 +274,7 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
             element: responseRoot,
             hasMountedMessage: Boolean(responseMessage),
             id: responseId,
+            messageId: responseMessageId,
             outlineItems: answerStructureItems(responseRoot, answerIndex),
             outlineWeight: answerHeadingWeight(responseRoot),
             parentId: previousTurnId,
@@ -292,6 +296,7 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
         element: turn,
         hasMountedMessage,
         id,
+        messageId,
         outlineItems: turnVisible ? answerStructureItems(turn, answerIndex) : [],
         outlineWeight: turnVisible ? answerHeadingWeight(turn) : 0,
         parentId: previousTurnId,

@@ -217,16 +217,36 @@ function remappedParentId(parentId: string | null | undefined, idAliases: Readon
 }
 
 function existingNodeIdForDomTurn(nodes: ReadonlyMap<string, OutlineTreeNode>, turn: DomOutlineTurn): string | null {
+  if (isVirtualizedAssistantShell(turn)) {
+    return canonicalAssistantNodeIdForDomTurn(nodes, turn) ?? (nodes.has(turn.id) ? turn.id : null);
+  }
+
   if (nodes.has(turn.id)) {
     return turn.id;
   }
 
-  if (turn.role !== "assistant" || turn.hasMountedMessage || turn.outlineItems.length > 0 || !turn.domTurnId) {
+  return null;
+}
+
+function isVirtualizedAssistantShell(turn: DomOutlineTurn): boolean {
+  return turn.role === "assistant" && !turn.hasMountedMessage && turn.outlineItems.length === 0 && Boolean(turn.domTurnId);
+}
+
+function canonicalAssistantNodeIdForDomTurn(
+  nodes: ReadonlyMap<string, OutlineTreeNode>,
+  turn: DomOutlineTurn
+): string | null {
+  if (turn.role !== "assistant" || !turn.domTurnId) {
     return null;
   }
 
   const matchingNodeIds = Array.from(nodes.values())
-    .filter((node) => node.role === "assistant" && node.domTurnId === turn.domTurnId)
+    .filter((node) =>
+      node.role === "assistant" &&
+      node.domTurnId === turn.domTurnId &&
+      node.id !== turn.id &&
+      (Boolean(node.messageId) || node.outlineItems.length > 0)
+    )
     .map((node) => node.id);
 
   return matchingNodeIds.length === 1 ? matchingNodeIds[0] : null;
@@ -287,9 +307,11 @@ export function mergeDomOutlineTurns(
         turn.canPruneOutlineItems ?? false
       );
       const nextDomTurnId = turn.domTurnId ?? existing.domTurnId;
+      const nextMessageId = turn.messageId ?? existing.messageId;
       changed ||= existing.role !== turn.role;
       changed ||= existing.parentId !== parentId;
       changed ||= existing.domTurnId !== nextDomTurnId;
+      changed ||= existing.messageId !== nextMessageId;
       changed ||= connectedElement(existing.element) !== connectedElement(nextElement);
       changed ||= !sameOutlineItems(existing.outlineItems, nextOutlineItems);
       if (existing.parentId && existing.parentId !== parentId) {
@@ -305,6 +327,7 @@ export function mergeDomOutlineTurns(
         ...existing,
         domTurnId: nextDomTurnId,
         element: nextElement,
+        messageId: nextMessageId,
         outlineItems: nextOutlineItems,
         parentId,
         role: turn.role
@@ -316,6 +339,7 @@ export function mergeDomOutlineTurns(
         domTurnId: turn.domTurnId,
         element: turn.element,
         id: turn.id,
+        messageId: turn.messageId,
         outlineItems: turn.outlineItems,
         parentId,
         role: turn.role

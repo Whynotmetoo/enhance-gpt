@@ -274,6 +274,7 @@ function treeFromApiConversation(conversationId: string, conversation: ApiConver
       children: nodeChildren(node).filter((childId) => mapping.has(childId)),
       element: null,
       id: nodeId,
+      messageId: message ? messageId(message, nodeId) : null,
       outlineItems: message ? outlineItemsFromApiMessage(nodeId, message) : [],
       parentId: parentId && mapping.has(parentId) ? parentId : null,
       role: message ? apiMessageRole(message) : null
