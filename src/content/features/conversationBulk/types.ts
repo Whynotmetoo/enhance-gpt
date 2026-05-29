@@ -5,7 +5,7 @@ export type ConversationItem = {
   row: HTMLElement;
 };
 
-export type BulkAction = "delete" | "archive";
+export type BulkAction = "delete" | "archive" | "export";
 export type BulkScope = "selected" | "all";
 
 export type BulkFailure = {

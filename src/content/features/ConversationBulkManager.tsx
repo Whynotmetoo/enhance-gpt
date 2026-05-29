@@ -4,7 +4,14 @@ import { createPortal } from "react-dom";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { ARCHIVED_CHATS_SETTINGS_HASH, SUPPORT_EXTENSION_URL } from "../../shared/constants";
 import { AlertModal } from "../components/AlertModal";
-import { ChatGptArchiveIcon, ChatGptDataControlsIcon, ChatGptMoreIcon, ChatGptTrashIcon, HeartIcon } from "../lib/icons";
+import {
+  ChatGptArchiveIcon,
+  ChatGptDataControlsIcon,
+  ChatGptDownloadIcon,
+  ChatGptMoreIcon,
+  ChatGptTrashIcon,
+  HeartIcon
+} from "../lib/icons";
 import { debounce } from "../lib/dom";
 import {
   clearAllConversationsInPageContext,
@@ -29,6 +36,7 @@ import {
   syncSuppressedConversationRows,
   syncConversationCheckboxes
 } from "./conversationBulk/dom";
+import { buildConversationExport, downloadConversationExport } from "./conversationBulk/exporter";
 import {
   actionConfirmLabel,
   bulkDialogDescription,
@@ -480,7 +488,60 @@ export function ConversationBulkManager(): ReactElement | null {
     }
   };
 
+  const runBulkExport = async (actionItems: ConversationItem[], scope: BulkScope) => {
+    const controller = new AbortController();
+    const failed: BulkFailure[] = [];
+    let succeeded = 0;
+
+    bulkAbortControllerRef.current = controller;
+    setIsArchiveMenuOpen(false);
+    setBulkDialog({
+      action: "export",
+      failed: [],
+      remaining: actionItems.length,
+      scope,
+      status: "running",
+      succeeded: 0,
+      total: actionItems.length
+    });
+
+    for (const item of actionItems) {
+      try {
+        const result = await buildConversationExport(item, controller.signal);
+        await downloadConversationExport(result);
+        succeeded += 1;
+      } catch (error) {
+        failed.push({
+          error: errorMessage(error),
+          id: item.id,
+          title: item.title
+        });
+      }
+
+      setBulkDialog({
+        action: "export",
+        failed: [...failed],
+        remaining: actionItems.length - succeeded - failed.length,
+        scope,
+        status: "running",
+        succeeded,
+        total: actionItems.length
+      });
+    }
+
+    bulkAbortControllerRef.current = null;
+    setBulkDialog(null);
+    setIsSelectionModeActive(false);
+    setSelectedIds(new Set());
+    showCompletionToast("export", succeeded, failed, scope);
+  };
+
   const runBulkAction = async (action: BulkAction, actionItems: ConversationItem[], scope: BulkScope) => {
+    if (action === "export") {
+      await runBulkExport(actionItems, scope);
+      return;
+    }
+
     if (action === "delete" && scope === "all") {
       await runClearAllConversations(actionItems);
       return;
@@ -654,12 +715,25 @@ export function ConversationBulkManager(): ReactElement | null {
     isArchiveMenuOpen && archiveMenuPosition
       ? createPortal(
           <div
-            aria-label="Archive options"
+            aria-label="More options"
             className="ecg-bulk-menu"
             ref={archiveMenuRef}
             role="menu"
             style={{ left: archiveMenuPosition.left, top: archiveMenuPosition.top }}
           >
+            <button
+              className="ecg-bulk-menu-item"
+              disabled={!hasSelectedItems || isBulkRunning}
+              role="menuitem"
+              type="button"
+              onClick={() => {
+                setIsArchiveMenuOpen(false);
+                requestBulkAction("export");
+              }}
+            >
+              <ChatGptDownloadIcon />
+              <span className="ecg-bulk-menu-item-label">Export selected chats</span>
+            </button>
             <button
               className="ecg-bulk-menu-item ecg-bulk-menu-item-danger"
               disabled={isBulkRunning}
@@ -704,6 +778,7 @@ export function ConversationBulkManager(): ReactElement | null {
   const dialogDescription = bulkDialogDescription(bulkDialog);
   const confirmButtonLabel =
     bulkDialog?.status === "confirm" ? actionConfirmLabel(bulkDialog.action) : "Confirm";
+  const confirmButtonClassName = bulkDialog?.action === "delete" ? "ecg-bulk-dialog-danger" : "ecg-bulk-dialog-primary";
   const toastElement = toast
     ? createPortal(
         <div
@@ -751,7 +826,7 @@ export function ConversationBulkManager(): ReactElement | null {
             >
               Cancel
             </button>
-            <button className="ecg-bulk-dialog-danger" type="button" onClick={confirmBulkAction}>
+            <button className={confirmButtonClassName} type="button" onClick={confirmBulkAction}>
               {confirmButtonLabel}
             </button>
           </div>

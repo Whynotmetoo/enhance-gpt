@@ -75,6 +75,15 @@ export function ChatGptArchiveIcon(props: IconProps): ReactElement {
   );
 }
 
+export function ChatGptDownloadIcon(props: IconProps): ReactElement {
+  return (
+    <FilledIconBase {...props}>
+      <path d="M10 2.668a.665.665 0 0 1 .665.665v7.056l2.03-2.029a.665.665 0 1 1 .94.94l-3.165 3.167a.665.665 0 0 1-.94 0L6.363 9.3a.665.665 0 0 1 .94-.94l2.032 2.03V3.333A.665.665 0 0 1 10 2.668" />
+      <path d="M4.167 12.668a.665.665 0 0 1 .665.665v1.25c0 .783.635 1.417 1.418 1.417h7.5c.783 0 1.418-.634 1.418-1.417v-1.25a.665.665 0 0 1 1.33 0v1.25a2.748 2.748 0 0 1-2.748 2.747h-7.5a2.748 2.748 0 0 1-2.748-2.747v-1.25a.665.665 0 0 1 .665-.665" />
+    </FilledIconBase>
+  );
+}
+
 export function ChatGptTrashIcon(props: IconProps): ReactElement {
   return (
     <FilledIconBase {...props}>
