@@ -31,6 +31,8 @@ type ExportAsset = {
   sourceUrl: string;
 };
 
+type AssetSourceMap = Map<string, ExportAsset>;
+
 type RenderedMessage = {
   assets: ExportAsset[];
   role: "assistant" | "user";
@@ -145,14 +147,18 @@ function appendAsset(
   label: string,
   isImage: boolean,
   usedAssetNames: Set<string>,
-  usedAssetSources: Set<string>
+  usedAssetSources: AssetSourceMap
 ): ExportAsset | null {
   const normalizedSourceUrl = urlFromAssetPointer(sourceUrl);
-  if (!normalizedSourceUrl || usedAssetSources.has(normalizedSourceUrl)) {
+  if (!normalizedSourceUrl) {
     return null;
   }
 
-  usedAssetSources.add(normalizedSourceUrl);
+  const existingAsset = usedAssetSources.get(normalizedSourceUrl);
+  if (existingAsset) {
+    return existingAsset;
+  }
+
   const baseName = sanitizeFileName(fileNameFromUrl(normalizedSourceUrl) ?? label, isImage ? "image" : "asset");
   const fileName = uniqueName(baseName.includes(".") ? baseName : `${baseName}${isImage ? ".png" : ""}`, usedAssetNames);
   const asset = {
@@ -163,6 +169,7 @@ function appendAsset(
     sourceUrl: normalizedSourceUrl
   };
   assets.push(asset);
+  usedAssetSources.set(normalizedSourceUrl, asset);
   return asset;
 }
 
@@ -191,7 +198,7 @@ function rewriteDownloadLinks(
   text: string,
   assets: ExportAsset[],
   usedAssetNames: Set<string>,
-  usedAssetSources: Set<string>
+  usedAssetSources: AssetSourceMap
 ): string {
   return text.replace(/(!?)\[([^\]]*)]\(([^)\s]+)(\s+"[^"]*")?\)/g, (match, imagePrefix, label, url, title) => {
     if (typeof url !== "string" || !isLikelyDownloadUrl(url)) {
@@ -339,7 +346,7 @@ function textFromPart(
   part: unknown,
   assets: ExportAsset[],
   usedAssetNames: Set<string>,
-  usedAssetSources: Set<string>
+  usedAssetSources: AssetSourceMap
 ): string {
   if (typeof part === "string") {
     return part;
@@ -383,7 +390,7 @@ function collectRecordAsset(
   record: Record<string, unknown>,
   assets: ExportAsset[],
   usedAssetNames: Set<string>,
-  usedAssetSources: Set<string>,
+  usedAssetSources: AssetSourceMap,
   hintIsAsset: boolean,
   hintIsImage: boolean
 ): void {
@@ -427,7 +434,7 @@ function collectNestedAssets(
   value: unknown,
   assets: ExportAsset[],
   usedAssetNames: Set<string>,
-  usedAssetSources: Set<string>,
+  usedAssetSources: AssetSourceMap,
   depth = 0,
   pathHint = ""
 ): void {
@@ -469,7 +476,7 @@ function appendMetadataAssets(
   message: ApiMessage,
   assets: ExportAsset[],
   usedAssetNames: Set<string>,
-  usedAssetSources: Set<string>
+  usedAssetSources: AssetSourceMap
 ): void {
   const metadata = message.metadata;
   if (!isRecord(metadata)) {
@@ -494,7 +501,7 @@ function appendMetadataAssets(
 function contentFromMessage(
   message: ApiMessage,
   usedAssetNames: Set<string>,
-  usedAssetSources: Set<string>
+  usedAssetSources: AssetSourceMap
 ): RenderedMessage | null {
   const metadata = message.metadata;
   if (
@@ -801,7 +808,7 @@ export async function buildConversationExport(
 
   const apiTitle = sanitizeFileName(stringValue(conversation.title) ?? item.title, "Untitled chat");
   const usedAssetNames = new Set<string>();
-  const usedAssetSources = new Set<string>();
+  const usedAssetSources: AssetSourceMap = new Map();
   const messages = orderedMessages(conversation)
     .map((message) => contentFromMessage(message, usedAssetNames, usedAssetSources))
     .filter((message): message is RenderedMessage => Boolean(message));
