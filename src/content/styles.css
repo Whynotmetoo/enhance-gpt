@@ -700,6 +700,7 @@ body.light,
 }
 
 .ecg-bulk-dialog-secondary,
+.ecg-bulk-dialog-primary,
 .ecg-bulk-dialog-danger {
   align-items: center;
   border: 1px solid transparent;
@@ -732,6 +733,17 @@ body.light,
 .ecg-bulk-dialog-danger {
   background: #d92d20;
   color: white;
+}
+
+.ecg-bulk-dialog-primary {
+  background: var(--text-primary, var(--ecg-text));
+  color: var(--main-surface-primary, var(--ecg-surface-strong));
+}
+
+.ecg-bulk-dialog-primary:hover,
+.ecg-bulk-dialog-primary:focus-visible {
+  opacity: 0.88;
+  outline: none;
 }
 
 .ecg-bulk-dialog-danger:hover,

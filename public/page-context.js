@@ -1,10 +1,39 @@
 (() => {
   const bridgeKey = "__enhanceGPTApiHeaderBridgeInstalled";
+  const bridgeStatusRequestSource = "enhance-gpt:bridge-status";
+  const bridgeStatusResponseSource = "enhance-gpt:bridge-status-response";
+  const directConversationRequestSource = "enhance-gpt:direct-conversation";
+  const directConversationResponseSource = "enhance-gpt:direct-conversation-response";
+  const assetRequestSource = "enhance-gpt:fetch-asset";
+  const assetResponseSource = "enhance-gpt:fetch-asset-response";
+  const bridgeCapabilities = [
+    "conversation-cache",
+    "conversation-action",
+    "clear-all-conversations",
+    "direct-conversation",
+    "asset-fetch",
+    "conversation-activity",
+    "conversation-list-activity"
+  ];
+  const bridgeHash = (() => {
+    try {
+      const scriptUrl = document.currentScript?.src;
+      return scriptUrl ? new URL(scriptUrl).searchParams.get("bridgeHash") || "unknown" : "unknown";
+    } catch {
+      return "unknown";
+    }
+  })();
+
   if (window[bridgeKey]) {
     return;
   }
 
   window[bridgeKey] = true;
+  window.__enhanceGPTPageContextBridge = {
+    capabilities: bridgeCapabilities.slice(),
+    hash: bridgeHash,
+    installedAt: Date.now()
+  };
 
   const requestSource = "enhance-gpt:fetch-conversation";
   const responseSource = "enhance-gpt:fetch-conversation-response";
@@ -39,6 +68,18 @@
 
   function postClearAllConversationsResponse(payload) {
     window.postMessage({ source: clearAllConversationsResponseSource, ...payload }, window.location.origin);
+  }
+
+  function postBridgeStatusResponse(payload) {
+    window.postMessage({ source: bridgeStatusResponseSource, ...payload }, window.location.origin);
+  }
+
+  function postDirectConversationResponse(payload) {
+    window.postMessage({ source: directConversationResponseSource, ...payload }, window.location.origin);
+  }
+
+  function postAssetResponse(payload, transfer) {
+    window.postMessage({ source: assetResponseSource, ...payload }, window.location.origin, transfer);
   }
 
   function postLocationChanged(changedAt = Date.now()) {
@@ -178,6 +219,32 @@
     if (nextXOaiIs) {
       backendApiHeaders.set("x-oai-is", nextXOaiIs);
     }
+  }
+
+  async function refreshAuthorizationHeader() {
+    try {
+      const response = await window.fetch("/api/auth/session", {
+        credentials: "include"
+      });
+      if (!response.ok) {
+        return;
+      }
+
+      const body = await response.clone().json();
+      if (body && typeof body.accessToken === "string" && body.accessToken.length > 0) {
+        backendApiHeaders.set("authorization", `Bearer ${body.accessToken}`);
+      }
+    } catch {
+      // The backend request will return the actionable error if auth cannot be refreshed.
+    }
+  }
+
+  async function ensureAuthorizationHeader() {
+    if (backendApiHeaders.has("authorization")) {
+      return;
+    }
+
+    await refreshAuthorizationHeader();
   }
 
   function isConversationStateInput(input) {
@@ -443,6 +510,248 @@
     }
   }
 
+  function forwardedHeadersFor(path, route) {
+    const headers = {
+      "x-openai-target-path": path,
+      "x-openai-target-route": route
+    };
+    forwardedBackendHeaderNames.forEach((name) => {
+      const value = backendApiHeaders.get(name);
+      if (value) {
+        headers[name] = value;
+      }
+    });
+    return headers;
+  }
+
+  async function fetchDirectConversation(requestId, conversationId) {
+    const path = `/backend-api/conversation/${encodeURIComponent(conversationId)}`;
+
+    try {
+      await ensureAuthorizationHeader();
+      let headers = forwardedHeadersFor(path, "/backend-api/conversation/{conversation_id}");
+      let response = await window.fetch(path, {
+        credentials: "include",
+        headers
+      });
+
+      if (!response.ok && (response.status === 401 || response.status === 403 || response.status === 404)) {
+        await refreshAuthorizationHeader();
+        headers = forwardedHeadersFor(path, "/backend-api/conversation/{conversation_id}");
+        response = await window.fetch(path, {
+          credentials: "include",
+          headers
+        });
+      }
+
+      let body = null;
+      let error;
+      try {
+        body = await response.clone().json();
+      } catch {
+        body = null;
+      }
+
+      if (!response.ok) {
+        try {
+          const text = await response.clone().text();
+          error = text || `Conversation request failed: ${response.status}`;
+        } catch {
+          error = `Conversation request failed: ${response.status}`;
+        }
+      }
+
+      if (response.ok) {
+        rememberConversation(conversationId, body);
+      }
+
+      postDirectConversationResponse({
+        requestId,
+        ok: response.ok,
+        status: response.status,
+        body,
+        error
+      });
+    } catch (error) {
+      postDirectConversationResponse({
+        requestId,
+        ok: false,
+        error: error instanceof Error ? error.message : "Conversation request failed"
+      });
+    }
+  }
+
+  function fileNameFromContentDisposition(contentDisposition) {
+    if (!contentDisposition) {
+      return null;
+    }
+
+    const utfMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utfMatch) {
+      try {
+        return decodeURIComponent(utfMatch[1].trim().replace(/^"|"$/g, ""));
+      } catch {
+        return utfMatch[1].trim().replace(/^"|"$/g, "");
+      }
+    }
+
+    const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+    return match ? match[1].trim() : null;
+  }
+
+  function fileNameFromDownloadBody(body) {
+    if (!body || typeof body !== "object") {
+      return null;
+    }
+
+    return typeof body.file_name === "string" && body.file_name.length > 0
+      ? body.file_name
+      : typeof body.filename === "string" && body.filename.length > 0
+        ? body.filename
+        : typeof body.name === "string" && body.name.length > 0
+          ? body.name
+          : null;
+  }
+
+  async function assetResponseBytes(response, originalFileName) {
+    const contentType = response.headers.get("content-type");
+    if (contentType?.includes("application/json")) {
+      try {
+        const body = await response.clone().json();
+        if (body && typeof body.download_url === "string" && body.download_url.length > 0) {
+          const parsedDownloadUrl = new URL(body.download_url, window.location.origin);
+          const path = `${parsedDownloadUrl.pathname}${parsedDownloadUrl.search}`;
+          const headers = parsedDownloadUrl.origin === window.location.origin
+            ? forwardedHeadersFor(path, parsedDownloadUrl.pathname)
+            : {};
+          const downloadResponse = await window.fetch(parsedDownloadUrl.href, {
+            credentials: "include",
+            headers
+          });
+
+          if (!downloadResponse.ok) {
+            let error = null;
+            try {
+              error = await downloadResponse.clone().text();
+            } catch {
+              error = null;
+            }
+
+            return {
+              error: error || `Asset request failed: ${downloadResponse.status}`,
+              ok: false,
+              status: downloadResponse.status
+            };
+          }
+
+          return {
+            bytes: await downloadResponse.arrayBuffer(),
+            contentType: downloadResponse.headers.get("content-type"),
+            fileName:
+              fileNameFromContentDisposition(downloadResponse.headers.get("content-disposition")) ??
+              fileNameFromDownloadBody(body) ??
+              originalFileName,
+            ok: true,
+            status: downloadResponse.status
+          };
+        }
+      } catch {
+        // Fall through and return the original response bytes.
+      }
+    }
+
+    return {
+      bytes: await response.arrayBuffer(),
+      contentType,
+      fileName: fileNameFromContentDisposition(response.headers.get("content-disposition")) ?? originalFileName,
+      ok: true,
+      status: response.status
+    };
+  }
+
+  async function fetchAsset(requestId, url) {
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url, window.location.origin);
+    } catch {
+      postAssetResponse({ requestId, ok: false, error: "Invalid asset URL" });
+      return;
+    }
+
+    const path = `${parsedUrl.pathname}${parsedUrl.search}`;
+    await ensureAuthorizationHeader();
+    let headers = parsedUrl.origin === window.location.origin
+      ? forwardedHeadersFor(path, parsedUrl.pathname)
+      : {};
+
+    try {
+      let response = await window.fetch(parsedUrl.href, {
+        credentials: "include",
+        headers
+      });
+
+      if (
+        parsedUrl.origin === window.location.origin &&
+        !response.ok &&
+        (response.status === 401 || response.status === 403 || response.status === 404)
+      ) {
+        await refreshAuthorizationHeader();
+        headers = forwardedHeadersFor(path, parsedUrl.pathname);
+        response = await window.fetch(parsedUrl.href, {
+          credentials: "include",
+          headers
+        });
+      }
+
+      if (!response.ok) {
+        let error;
+        try {
+          error = await response.clone().text();
+        } catch {
+          error = null;
+        }
+
+        postAssetResponse({
+          requestId,
+          ok: false,
+          status: response.status,
+          error: error || `Asset request failed: ${response.status}`
+        });
+        return;
+      }
+
+      const result = await assetResponseBytes(response, fileNameFromContentDisposition(response.headers.get("content-disposition")));
+      if (!result.ok) {
+        postAssetResponse({
+          requestId,
+          ok: false,
+          status: result.status,
+          error: result.error
+        });
+        return;
+      }
+
+      const bytes = result.bytes;
+      postAssetResponse(
+        {
+          requestId,
+          ok: true,
+          status: result.status,
+          contentType: result.contentType,
+          fileName: result.fileName,
+          bytes
+        },
+        [bytes]
+      );
+    } catch (error) {
+      postAssetResponse({
+        requestId,
+        ok: false,
+        error: error instanceof Error ? error.message : "Asset request failed"
+      });
+    }
+  }
+
   async function performConversationAction(requestId, conversationId, action) {
     const body =
       action === "delete"
@@ -465,15 +774,8 @@
     const path = `/backend-api/conversation/${encodeURIComponent(conversationId)}`;
     const headers = {
       "Content-Type": "application/json",
-      "x-openai-target-path": path,
-      "x-openai-target-route": "/backend-api/conversation/{conversation_id}"
+      ...forwardedHeadersFor(path, "/backend-api/conversation/{conversation_id}")
     };
-    forwardedBackendHeaderNames.forEach((name) => {
-      const value = backendApiHeaders.get(name);
-      if (value) {
-        headers[name] = value;
-      }
-    });
 
     try {
       const response = await window.fetch(path, {
@@ -529,15 +831,8 @@
     const path = "/backend-api/conversations";
     const headers = {
       "Content-Type": "application/json",
-      "x-openai-target-path": path,
-      "x-openai-target-route": "/backend-api/conversations"
+      ...forwardedHeadersFor(path, "/backend-api/conversations")
     };
-    forwardedBackendHeaderNames.forEach((name) => {
-      const value = backendApiHeaders.get(name);
-      if (value) {
-        headers[name] = value;
-      }
-    });
 
     try {
       const response = await window.fetch(path, {
@@ -566,16 +861,7 @@
       }
 
       if (succeeded) {
-        const refreshHeaders = {
-          "x-openai-target-path": "/backend-api/conversations",
-          "x-openai-target-route": "/backend-api/conversations"
-        };
-        forwardedBackendHeaderNames.forEach((name) => {
-          const value = backendApiHeaders.get(name);
-          if (value) {
-            refreshHeaders[name] = value;
-          }
-        });
+        const refreshHeaders = forwardedHeadersFor("/backend-api/conversations", "/backend-api/conversations");
 
         void window
           .fetch("/backend-api/conversations?offset=0&limit=28&order=updated&is_archived=false&is_starred=false", {
@@ -621,6 +907,16 @@
       return;
     }
 
+    if (data.source === bridgeStatusRequestSource) {
+      postBridgeStatusResponse({
+        requestId: data.requestId,
+        ok: true,
+        hash: bridgeHash,
+        capabilities: bridgeCapabilities.slice()
+      });
+      return;
+    }
+
     if (data.source === requestSource) {
       if (typeof data.conversationId !== "string" || data.conversationId.length === 0) {
         postResponse({ requestId: data.requestId, ok: false, error: "Missing conversation id" });
@@ -632,6 +928,26 @@
         data.conversationId,
         typeof data.minCapturedAt === "number" ? data.minCapturedAt : 0
       );
+      return;
+    }
+
+    if (data.source === directConversationRequestSource) {
+      if (typeof data.conversationId !== "string" || data.conversationId.length === 0) {
+        postDirectConversationResponse({ requestId: data.requestId, ok: false, error: "Missing conversation id" });
+        return;
+      }
+
+      void fetchDirectConversation(data.requestId, data.conversationId);
+      return;
+    }
+
+    if (data.source === assetRequestSource) {
+      if (typeof data.url !== "string" || data.url.length === 0) {
+        postAssetResponse({ requestId: data.requestId, ok: false, error: "Missing asset URL" });
+        return;
+      }
+
+      void fetchAsset(data.requestId, data.url);
       return;
     }
 

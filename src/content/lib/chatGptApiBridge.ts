@@ -1,12 +1,18 @@
 import { EXTENSION_NAMESPACE } from "../../shared/constants";
 
 const pageContextScript = "page-context.js";
+const bridgeStatusRequestSource = `${EXTENSION_NAMESPACE}:bridge-status`;
+const bridgeStatusResponseSource = `${EXTENSION_NAMESPACE}:bridge-status-response`;
 const requestSource = `${EXTENSION_NAMESPACE}:fetch-conversation`;
 const responseSource = `${EXTENSION_NAMESPACE}:fetch-conversation-response`;
 const conversationActionRequestSource = `${EXTENSION_NAMESPACE}:conversation-action`;
 const conversationActionResponseSource = `${EXTENSION_NAMESPACE}:conversation-action-response`;
 const clearAllConversationsRequestSource = `${EXTENSION_NAMESPACE}:clear-all-conversations`;
 const clearAllConversationsResponseSource = `${EXTENSION_NAMESPACE}:clear-all-conversations-response`;
+const directConversationRequestSource = `${EXTENSION_NAMESPACE}:direct-conversation`;
+const directConversationResponseSource = `${EXTENSION_NAMESPACE}:direct-conversation-response`;
+const assetRequestSource = `${EXTENSION_NAMESPACE}:fetch-asset`;
+const assetResponseSource = `${EXTENSION_NAMESPACE}:fetch-asset-response`;
 const conversationActivitySource = `${EXTENSION_NAMESPACE}:conversation-activity`;
 const conversationListActivitySource = `${EXTENSION_NAMESPACE}:conversation-list-activity`;
 
@@ -79,8 +85,43 @@ type PageClearAllConversationsResponse = {
   status?: unknown;
 };
 
+type PageDirectConversationResponse = PageConversationResponse;
+
+type PageAssetResponse = {
+  source?: unknown;
+  requestId?: unknown;
+  bytes?: unknown;
+  contentType?: unknown;
+  error?: unknown;
+  fileName?: unknown;
+  ok?: unknown;
+  status?: unknown;
+};
+
+type PageBridgeStatusResponse = {
+  capabilities?: unknown;
+  hash?: unknown;
+  ok?: unknown;
+  requestId?: unknown;
+  source?: unknown;
+};
+
+export type PageContextBridgeStatus = {
+  actualHash: string | null;
+  capabilities: string[];
+  checkedAt: number;
+  expectedHash: string | null;
+  state: "matched" | "mismatched" | "missing";
+};
+
 let installed = false;
 let activityListenerInstalled = false;
+let pageContextBridgeReadyPromise: Promise<void> | null = null;
+let pageContextBridgeStatusPromise: Promise<PageContextBridgeStatus> | null = null;
+let pageContextScriptHashPromise: Promise<string | null> | null = null;
+let expectedPageContextBridgeHash: string | null = null;
+let lastPageContextBridgeStatus: PageContextBridgeStatus | null = null;
+let pageContextScriptUrl: string | null = null;
 let requestCounter = 0;
 const activityListeners = new Set<(activity: ConversationActivity) => void>();
 const conversationListActivityListeners = new Set<(activity: ConversationListActivity) => void>();
@@ -97,6 +138,129 @@ function extensionApi(): ExtensionApi | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function bytesToHex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function pageContextScriptUrlWithHash(scriptUrl: string, hash: string | null): string {
+  if (!hash) {
+    return scriptUrl;
+  }
+
+  const url = new URL(scriptUrl);
+  url.searchParams.set("bridgeHash", hash);
+  return url.toString();
+}
+
+async function pageContextScriptHash(scriptUrl: string): Promise<string | null> {
+  if (pageContextScriptHashPromise) {
+    return pageContextScriptHashPromise;
+  }
+
+  pageContextScriptHashPromise = (async () => {
+    try {
+      const response = await fetch(scriptUrl);
+      if (!response.ok || !globalThis.crypto?.subtle) {
+        return null;
+      }
+
+      const hash = bytesToHex(await globalThis.crypto.subtle.digest("SHA-256", await response.arrayBuffer()));
+      expectedPageContextBridgeHash = hash;
+      return hash;
+    } catch {
+      return null;
+    }
+  })();
+
+  return pageContextScriptHashPromise;
+}
+
+function pageContextBridgeStatusFromMissing(): PageContextBridgeStatus {
+  return {
+    actualHash: null,
+    capabilities: [],
+    checkedAt: Date.now(),
+    expectedHash: expectedPageContextBridgeHash,
+    state: "missing"
+  };
+}
+
+function pageContextBridgeStatusFromResponse(data: PageBridgeStatusResponse): PageContextBridgeStatus {
+  const actualHash = typeof data.hash === "string" && data.hash.length > 0 ? data.hash : null;
+  const capabilities = Array.isArray(data.capabilities)
+    ? data.capabilities.filter((capability): capability is string => typeof capability === "string" && capability.length > 0)
+    : [];
+
+  return {
+    actualHash,
+    capabilities,
+    checkedAt: Date.now(),
+    expectedHash: expectedPageContextBridgeHash,
+    state: expectedPageContextBridgeHash && actualHash !== expectedPageContextBridgeHash ? "mismatched" : "matched"
+  };
+}
+
+function requestPageContextBridgeStatus(): Promise<PageContextBridgeStatus> {
+  const requestId = `bridge-status-${Date.now()}-${requestCounter}`;
+  requestCounter += 1;
+
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("message", handleMessage);
+    };
+    const finish = (status: PageContextBridgeStatus) => {
+      cleanup();
+      lastPageContextBridgeStatus = status;
+      resolve(status);
+    };
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== window || event.origin !== window.location.origin || !isRecord(event.data)) {
+        return;
+      }
+
+      const data = event.data as PageBridgeStatusResponse;
+      if (data.source !== bridgeStatusResponseSource || data.requestId !== requestId) {
+        return;
+      }
+
+      finish(pageContextBridgeStatusFromResponse(data));
+    };
+    const timer = window.setTimeout(() => finish(pageContextBridgeStatusFromMissing()), 750);
+
+    window.addEventListener("message", handleMessage);
+    window.postMessage(
+      {
+        source: bridgeStatusRequestSource,
+        requestId
+      },
+      window.location.origin
+    );
+  });
+}
+
+function refreshPageContextBridgeStatus(): Promise<PageContextBridgeStatus> {
+  if (pageContextBridgeStatusPromise) {
+    return pageContextBridgeStatusPromise;
+  }
+
+  pageContextBridgeStatusPromise = (async () => {
+    if (!expectedPageContextBridgeHash && pageContextScriptUrl) {
+      expectedPageContextBridgeHash = await pageContextScriptHash(pageContextScriptUrl);
+    }
+
+    return requestPageContextBridgeStatus();
+  })();
+
+  return pageContextBridgeStatusPromise;
+}
+
+export function getPageContextBridgeStatus(): PageContextBridgeStatus | null {
+  return lastPageContextBridgeStatus;
 }
 
 function rememberConversationActivity(activity: ConversationActivity): void {
@@ -169,28 +333,48 @@ function installConversationActivityListener(): void {
   });
 }
 
-function injectPageContextBridge(): void {
-  const scriptUrl = extensionApi()?.runtime?.getURL?.(pageContextScript);
-  if (!scriptUrl) {
-    return;
+function injectPageContextBridge(): Promise<void> {
+  if (pageContextBridgeReadyPromise) {
+    return pageContextBridgeReadyPromise;
   }
 
-  const appendScript = (): void => {
-    const root = document.documentElement ?? document.head;
-    if (!root) {
-      document.addEventListener("DOMContentLoaded", appendScript, { once: true });
-      return;
-    }
+  const scriptUrl = extensionApi()?.runtime?.getURL?.(pageContextScript);
+  if (!scriptUrl) {
+    pageContextBridgeReadyPromise = Promise.resolve();
+    return pageContextBridgeReadyPromise;
+  }
+  pageContextScriptUrl = scriptUrl;
 
-    const script = document.createElement("script");
-    script.src = scriptUrl;
-    script.async = false;
-    script.onload = () => script.remove();
-    script.onerror = () => script.remove();
-    root.append(script);
-  };
+  pageContextBridgeReadyPromise = new Promise((resolve) => {
+    const appendScript = (): void => {
+      const root = document.documentElement ?? document.head;
+      if (!root) {
+        document.addEventListener("DOMContentLoaded", appendScript, { once: true });
+        return;
+      }
 
-  appendScript();
+      void pageContextScriptHash(scriptUrl).then((hash) => {
+        const script = document.createElement("script");
+        script.src = pageContextScriptUrlWithHash(scriptUrl, hash);
+        script.async = false;
+        script.onload = () => {
+          script.remove();
+          resolve();
+          void refreshPageContextBridgeStatus();
+        };
+        script.onerror = () => {
+          script.remove();
+          resolve();
+          void refreshPageContextBridgeStatus();
+        };
+        root.append(script);
+      });
+    };
+
+    appendScript();
+  });
+
+  return pageContextBridgeReadyPromise;
 }
 
 export function installChatGptApiBridge(): void {
@@ -201,7 +385,13 @@ export function installChatGptApiBridge(): void {
   }
 
   installed = true;
-  injectPageContextBridge();
+  void injectPageContextBridge();
+}
+
+async function ensurePageContextBridgeReady(): Promise<void> {
+  installChatGptApiBridge();
+  await (pageContextBridgeReadyPromise ?? Promise.resolve());
+  void refreshPageContextBridgeStatus();
 }
 
 export function subscribeConversationActivity(listener: (activity: ConversationActivity) => void): () => void {
@@ -274,19 +464,179 @@ export function fetchConversationInPageContext(
       const detail = typeof data.error === "string" ? data.error : `Conversation request failed: ${data.status}`;
       reject(new Error(detail));
     };
-    const timer = window.setTimeout(() => fail("Conversation request timed out"), 8_000);
+    let timer = 0;
 
-    signal.addEventListener("abort", abort, { once: true });
-    window.addEventListener("message", handleMessage);
-    window.postMessage(
-      {
-        source: requestSource,
-        requestId,
-        conversationId,
-        minCapturedAt
-      },
-      window.location.origin
-    );
+    void ensurePageContextBridgeReady()
+      .then(() => {
+        if (signal.aborted) {
+          abort();
+          return;
+        }
+
+        timer = window.setTimeout(() => fail("Conversation request timed out"), 8_000);
+        signal.addEventListener("abort", abort, { once: true });
+        window.addEventListener("message", handleMessage);
+        window.postMessage(
+          {
+            source: requestSource,
+            requestId,
+            conversationId,
+            minCapturedAt
+          },
+          window.location.origin
+        );
+      })
+      .catch((error) => fail(error instanceof Error ? error.message : "Conversation request failed"));
+  });
+}
+
+export function fetchConversationByIdInPageContext(conversationId: string, signal: AbortSignal): Promise<unknown> {
+  installChatGptApiBridge();
+
+  if (signal.aborted) {
+    return Promise.reject(new Error("Conversation request aborted"));
+  }
+
+  const requestId = `direct-conversation-${Date.now()}-${requestCounter}`;
+  requestCounter += 1;
+
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
+      window.removeEventListener("message", handleMessage);
+    };
+    const abort = () => {
+      cleanup();
+      reject(new Error("Conversation request aborted"));
+    };
+    const fail = (message: string) => {
+      cleanup();
+      reject(new Error(message));
+    };
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== window || event.origin !== window.location.origin || !isRecord(event.data)) {
+        return;
+      }
+
+      const data = event.data as PageDirectConversationResponse;
+      if (data.source !== directConversationResponseSource || data.requestId !== requestId) {
+        return;
+      }
+
+      cleanup();
+
+      if (data.ok === true) {
+        resolve(data.body);
+        return;
+      }
+
+      const detail = typeof data.error === "string" ? data.error : `Conversation request failed: ${data.status}`;
+      reject(new Error(detail));
+    };
+    let timer = 0;
+
+    void ensurePageContextBridgeReady()
+      .then(() => {
+        if (signal.aborted) {
+          abort();
+          return;
+        }
+
+        timer = window.setTimeout(() => fail("Conversation request timed out"), 20_000);
+        signal.addEventListener("abort", abort, { once: true });
+        window.addEventListener("message", handleMessage);
+        window.postMessage(
+          {
+            source: directConversationRequestSource,
+            requestId,
+            conversationId
+          },
+          window.location.origin
+        );
+      })
+      .catch((error) => fail(error instanceof Error ? error.message : "Conversation request failed"));
+  });
+}
+
+export type PageAssetFetchResult = {
+  bytes: ArrayBuffer;
+  contentType: string | null;
+  fileName: string | null;
+  status?: number;
+};
+
+export function fetchAssetInPageContext(url: string, signal: AbortSignal): Promise<PageAssetFetchResult> {
+  installChatGptApiBridge();
+
+  if (signal.aborted) {
+    return Promise.reject(new Error("Asset request aborted"));
+  }
+
+  const requestId = `asset-${Date.now()}-${requestCounter}`;
+  requestCounter += 1;
+
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
+      window.removeEventListener("message", handleMessage);
+    };
+    const abort = () => {
+      cleanup();
+      reject(new Error("Asset request aborted"));
+    };
+    const fail = (message: string) => {
+      cleanup();
+      reject(new Error(message));
+    };
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== window || event.origin !== window.location.origin || !isRecord(event.data)) {
+        return;
+      }
+
+      const data = event.data as PageAssetResponse;
+      if (data.source !== assetResponseSource || data.requestId !== requestId) {
+        return;
+      }
+
+      cleanup();
+
+      if (data.ok === true && data.bytes instanceof ArrayBuffer) {
+        resolve({
+          bytes: data.bytes,
+          contentType: typeof data.contentType === "string" && data.contentType.length > 0 ? data.contentType : null,
+          fileName: typeof data.fileName === "string" && data.fileName.length > 0 ? data.fileName : null,
+          status: typeof data.status === "number" ? data.status : undefined
+        });
+        return;
+      }
+
+      const detail = typeof data.error === "string" ? data.error : `Asset request failed: ${data.status}`;
+      reject(new Error(detail));
+    };
+    let timer = 0;
+
+    void ensurePageContextBridgeReady()
+      .then(() => {
+        if (signal.aborted) {
+          abort();
+          return;
+        }
+
+        timer = window.setTimeout(() => fail("Asset request timed out"), 30_000);
+        signal.addEventListener("abort", abort, { once: true });
+        window.addEventListener("message", handleMessage);
+        window.postMessage(
+          {
+            source: assetRequestSource,
+            requestId,
+            url
+          },
+          window.location.origin
+        );
+      })
+      .catch((error) => fail(error instanceof Error ? error.message : "Asset request failed"));
   });
 }
 
@@ -338,19 +688,29 @@ export function performConversationActionInPageContext(
         status: typeof data.status === "number" ? data.status : undefined
       });
     };
-    const timer = window.setTimeout(() => fail("Conversation action timed out"), 12_000);
+    let timer = 0;
 
-    signal.addEventListener("abort", abort, { once: true });
-    window.addEventListener("message", handleMessage);
-    window.postMessage(
-      {
-        source: conversationActionRequestSource,
-        requestId,
-        action,
-        conversationId
-      },
-      window.location.origin
-    );
+    void ensurePageContextBridgeReady()
+      .then(() => {
+        if (signal.aborted) {
+          abort();
+          return;
+        }
+
+        timer = window.setTimeout(() => fail("Conversation action timed out"), 12_000);
+        signal.addEventListener("abort", abort, { once: true });
+        window.addEventListener("message", handleMessage);
+        window.postMessage(
+          {
+            source: conversationActionRequestSource,
+            requestId,
+            action,
+            conversationId
+          },
+          window.location.origin
+        );
+      })
+      .catch((error) => fail(error instanceof Error ? error.message : "Conversation action failed"));
   });
 }
 
@@ -396,16 +756,26 @@ export function clearAllConversationsInPageContext(signal: AbortSignal): Promise
         status: typeof data.status === "number" ? data.status : undefined
       });
     };
-    const timer = window.setTimeout(() => fail("Clear all conversations timed out"), 12_000);
+    let timer = 0;
 
-    signal.addEventListener("abort", abort, { once: true });
-    window.addEventListener("message", handleMessage);
-    window.postMessage(
-      {
-        source: clearAllConversationsRequestSource,
-        requestId
-      },
-      window.location.origin
-    );
+    void ensurePageContextBridgeReady()
+      .then(() => {
+        if (signal.aborted) {
+          abort();
+          return;
+        }
+
+        timer = window.setTimeout(() => fail("Clear all conversations timed out"), 12_000);
+        signal.addEventListener("abort", abort, { once: true });
+        window.addEventListener("message", handleMessage);
+        window.postMessage(
+          {
+            source: clearAllConversationsRequestSource,
+            requestId
+          },
+          window.location.origin
+        );
+      })
+      .catch((error) => fail(error instanceof Error ? error.message : "Clear all conversations failed"));
   });
 }

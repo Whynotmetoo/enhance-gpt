@@ -1,7 +1,10 @@
 import type { BulkAction, BulkDialogState, BulkFailure, BulkScope } from "./types";
 
 export function actionProgressLabel(action: BulkAction): string {
-  return action === "delete" ? "Deleting" : "Archiving";
+  if (action === "delete") {
+    return "Deleting";
+  }
+  return action === "archive" ? "Archiving" : "Exporting";
 }
 
 export function actionProgressTitle(action: BulkAction): string {
@@ -9,11 +12,17 @@ export function actionProgressTitle(action: BulkAction): string {
 }
 
 export function actionPastLabel(action: BulkAction): string {
-  return action === "delete" ? "Deleted" : "Archived";
+  if (action === "delete") {
+    return "Deleted";
+  }
+  return action === "archive" ? "Archived" : "Exported";
 }
 
 export function actionConfirmLabel(action: BulkAction): string {
-  return action === "delete" ? "Confirm deletion" : "Confirm archive";
+  if (action === "delete") {
+    return "Confirm deletion";
+  }
+  return action === "archive" ? "Confirm archive" : "Export";
 }
 
 export function pluralizeConversation(count: number): string {
@@ -50,7 +59,11 @@ export function bulkDialogTitle(dialog: BulkDialogState | null): string {
       return "Clear your chat history - are you sure?";
     }
 
-    return dialog.action === "delete" ? "Delete chats?" : "Archive chats";
+    if (dialog.action === "delete") {
+      return "Delete chats?";
+    }
+
+    return dialog.action === "archive" ? "Archive chats" : "Export chats";
   }
 
   return "Confirm batch action";
@@ -66,7 +79,9 @@ export function bulkDialogDescription(dialog: BulkDialogState | null): string {
   if (dialog?.status === "confirm") {
     return dialog.scope === "all" && dialog.action === "delete"
       ? "This will delete all chats, including those in Projects and archived conversations."
-      : `This will ${dialog.action} ${pluralizeConversation(dialog.items.length)}.`;
+      : dialog.action === "export"
+        ? `This will export ${pluralizeConversation(dialog.items.length)} as Markdown. Conversations with assets will download as zip files.`
+        : `This will ${dialog.action} ${pluralizeConversation(dialog.items.length)}.`;
   }
 
   return "";
