@@ -223,7 +223,10 @@ function escapeMarkdownLinkLabel(value: string): string {
 }
 
 function markdownInlineCode(value: string): string {
-  return value.includes("`") ? escapeMarkdownLinkLabel(value) : `\`${value}\``;
+  const longestBacktickRun = Math.max(0, ...Array.from(value.matchAll(/`+/g), (match) => match[0].length));
+  const fence = "`".repeat(longestBacktickRun + 1);
+  const needsPadding = value.startsWith("`") || value.endsWith("`");
+  return needsPadding ? `${fence} ${value} ${fence}` : `${fence}${value}${fence}`;
 }
 
 function hostnameFromUrl(url: string): string | null {
@@ -257,11 +260,10 @@ function markdownFromReferenceItem(item: Record<string, unknown>): string | null
 }
 
 function markdownFromContentReference(reference: Record<string, unknown>): string | null {
-  if (reference.type === "file") {
-    const name = stringValue(reference.name);
-    if (name) {
-      return markdownInlineCode(name.replace(/(\.[a-z0-9]+)\.txt$/i, "$1"));
-    }
+  const name = stringValue(reference.name);
+  const matchedText = stringValue(reference.matched_text);
+  if (name && (reference.type === "file" || (matchedText && isCitationToken(matchedText)))) {
+    return markdownInlineCode(name);
   }
 
   const alt = stringValue(reference.alt);
