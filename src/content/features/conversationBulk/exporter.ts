@@ -602,7 +602,7 @@ function markdownFromConversation(title: string, messages: RenderedMessage[]): s
 
   messages.forEach((message) => {
     if (message.role !== previousRole) {
-      sections.push(`## ${markdownRoleTitle(message.role)}`);
+      sections.push(`# ${markdownRoleTitle(message.role)}`);
       previousRole = message.role;
     }
 
