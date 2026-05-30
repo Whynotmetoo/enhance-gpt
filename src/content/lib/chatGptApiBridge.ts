@@ -1,6 +1,8 @@
 import { EXTENSION_NAMESPACE } from "../../shared/constants";
 
 const pageContextScript = "page-context.js";
+const bridgeStatusRequestSource = `${EXTENSION_NAMESPACE}:bridge-status`;
+const bridgeStatusResponseSource = `${EXTENSION_NAMESPACE}:bridge-status-response`;
 const requestSource = `${EXTENSION_NAMESPACE}:fetch-conversation`;
 const responseSource = `${EXTENSION_NAMESPACE}:fetch-conversation-response`;
 const conversationActionRequestSource = `${EXTENSION_NAMESPACE}:conversation-action`;
@@ -96,9 +98,30 @@ type PageAssetResponse = {
   status?: unknown;
 };
 
+type PageBridgeStatusResponse = {
+  capabilities?: unknown;
+  hash?: unknown;
+  ok?: unknown;
+  requestId?: unknown;
+  source?: unknown;
+};
+
+export type PageContextBridgeStatus = {
+  actualHash: string | null;
+  capabilities: string[];
+  checkedAt: number;
+  expectedHash: string | null;
+  state: "matched" | "mismatched" | "missing";
+};
+
 let installed = false;
 let activityListenerInstalled = false;
 let pageContextBridgeReadyPromise: Promise<void> | null = null;
+let pageContextBridgeStatusPromise: Promise<PageContextBridgeStatus> | null = null;
+let pageContextScriptHashPromise: Promise<string | null> | null = null;
+let expectedPageContextBridgeHash: string | null = null;
+let lastPageContextBridgeStatus: PageContextBridgeStatus | null = null;
+let pageContextScriptUrl: string | null = null;
 let requestCounter = 0;
 const activityListeners = new Set<(activity: ConversationActivity) => void>();
 const conversationListActivityListeners = new Set<(activity: ConversationListActivity) => void>();
@@ -115,6 +138,129 @@ function extensionApi(): ExtensionApi | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function bytesToHex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function pageContextScriptUrlWithHash(scriptUrl: string, hash: string | null): string {
+  if (!hash) {
+    return scriptUrl;
+  }
+
+  const url = new URL(scriptUrl);
+  url.searchParams.set("bridgeHash", hash);
+  return url.toString();
+}
+
+async function pageContextScriptHash(scriptUrl: string): Promise<string | null> {
+  if (pageContextScriptHashPromise) {
+    return pageContextScriptHashPromise;
+  }
+
+  pageContextScriptHashPromise = (async () => {
+    try {
+      const response = await fetch(scriptUrl);
+      if (!response.ok || !globalThis.crypto?.subtle) {
+        return null;
+      }
+
+      const hash = bytesToHex(await globalThis.crypto.subtle.digest("SHA-256", await response.arrayBuffer()));
+      expectedPageContextBridgeHash = hash;
+      return hash;
+    } catch {
+      return null;
+    }
+  })();
+
+  return pageContextScriptHashPromise;
+}
+
+function pageContextBridgeStatusFromMissing(): PageContextBridgeStatus {
+  return {
+    actualHash: null,
+    capabilities: [],
+    checkedAt: Date.now(),
+    expectedHash: expectedPageContextBridgeHash,
+    state: "missing"
+  };
+}
+
+function pageContextBridgeStatusFromResponse(data: PageBridgeStatusResponse): PageContextBridgeStatus {
+  const actualHash = typeof data.hash === "string" && data.hash.length > 0 ? data.hash : null;
+  const capabilities = Array.isArray(data.capabilities)
+    ? data.capabilities.filter((capability): capability is string => typeof capability === "string" && capability.length > 0)
+    : [];
+
+  return {
+    actualHash,
+    capabilities,
+    checkedAt: Date.now(),
+    expectedHash: expectedPageContextBridgeHash,
+    state: expectedPageContextBridgeHash && actualHash !== expectedPageContextBridgeHash ? "mismatched" : "matched"
+  };
+}
+
+function requestPageContextBridgeStatus(): Promise<PageContextBridgeStatus> {
+  const requestId = `bridge-status-${Date.now()}-${requestCounter}`;
+  requestCounter += 1;
+
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("message", handleMessage);
+    };
+    const finish = (status: PageContextBridgeStatus) => {
+      cleanup();
+      lastPageContextBridgeStatus = status;
+      resolve(status);
+    };
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== window || event.origin !== window.location.origin || !isRecord(event.data)) {
+        return;
+      }
+
+      const data = event.data as PageBridgeStatusResponse;
+      if (data.source !== bridgeStatusResponseSource || data.requestId !== requestId) {
+        return;
+      }
+
+      finish(pageContextBridgeStatusFromResponse(data));
+    };
+    const timer = window.setTimeout(() => finish(pageContextBridgeStatusFromMissing()), 750);
+
+    window.addEventListener("message", handleMessage);
+    window.postMessage(
+      {
+        source: bridgeStatusRequestSource,
+        requestId
+      },
+      window.location.origin
+    );
+  });
+}
+
+function refreshPageContextBridgeStatus(): Promise<PageContextBridgeStatus> {
+  if (pageContextBridgeStatusPromise) {
+    return pageContextBridgeStatusPromise;
+  }
+
+  pageContextBridgeStatusPromise = (async () => {
+    if (!expectedPageContextBridgeHash && pageContextScriptUrl) {
+      expectedPageContextBridgeHash = await pageContextScriptHash(pageContextScriptUrl);
+    }
+
+    return requestPageContextBridgeStatus();
+  })();
+
+  return pageContextBridgeStatusPromise;
+}
+
+export function getPageContextBridgeStatus(): PageContextBridgeStatus | null {
+  return lastPageContextBridgeStatus;
 }
 
 function rememberConversationActivity(activity: ConversationActivity): void {
@@ -197,6 +343,7 @@ function injectPageContextBridge(): Promise<void> {
     pageContextBridgeReadyPromise = Promise.resolve();
     return pageContextBridgeReadyPromise;
   }
+  pageContextScriptUrl = scriptUrl;
 
   pageContextBridgeReadyPromise = new Promise((resolve) => {
     const appendScript = (): void => {
@@ -206,18 +353,22 @@ function injectPageContextBridge(): Promise<void> {
         return;
       }
 
-      const script = document.createElement("script");
-      script.src = scriptUrl;
-      script.async = false;
-      script.onload = () => {
-        script.remove();
-        resolve();
-      };
-      script.onerror = () => {
-        script.remove();
-        resolve();
-      };
-      root.append(script);
+      void pageContextScriptHash(scriptUrl).then((hash) => {
+        const script = document.createElement("script");
+        script.src = pageContextScriptUrlWithHash(scriptUrl, hash);
+        script.async = false;
+        script.onload = () => {
+          script.remove();
+          resolve();
+          void refreshPageContextBridgeStatus();
+        };
+        script.onerror = () => {
+          script.remove();
+          resolve();
+          void refreshPageContextBridgeStatus();
+        };
+        root.append(script);
+      });
     };
 
     appendScript();
@@ -240,6 +391,7 @@ export function installChatGptApiBridge(): void {
 async function ensurePageContextBridgeReady(): Promise<void> {
   installChatGptApiBridge();
   await (pageContextBridgeReadyPromise ?? Promise.resolve());
+  void refreshPageContextBridgeStatus();
 }
 
 export function subscribeConversationActivity(listener: (activity: ConversationActivity) => void): () => void {
