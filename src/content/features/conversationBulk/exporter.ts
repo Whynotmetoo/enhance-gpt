@@ -222,6 +222,13 @@ function escapeMarkdownLinkLabel(value: string): string {
   return value.replace(/([\\[\]])/g, "\\$1");
 }
 
+function markdownInlineCode(value: string): string {
+  const longestBacktickRun = Math.max(0, ...Array.from(value.matchAll(/`+/g), (match) => match[0].length));
+  const fence = "`".repeat(longestBacktickRun + 1);
+  const needsPadding = value.startsWith("`") || value.endsWith("`");
+  return needsPadding ? `${fence} ${value} ${fence}` : `${fence}${value}${fence}`;
+}
+
 function hostnameFromUrl(url: string): string | null {
   try {
     return new URL(url, window.location.origin).hostname.replace(/^www\./, "");
@@ -253,6 +260,12 @@ function markdownFromReferenceItem(item: Record<string, unknown>): string | null
 }
 
 function markdownFromContentReference(reference: Record<string, unknown>): string | null {
+  const name = stringValue(reference.name);
+  const matchedText = stringValue(reference.matched_text);
+  if (name && (reference.type === "file" || (matchedText && isCitationToken(matchedText)))) {
+    return markdownInlineCode(name);
+  }
+
   const alt = stringValue(reference.alt);
   if (alt) {
     return alt;
@@ -266,7 +279,7 @@ function markdownFromContentReference(reference: Record<string, unknown>): strin
 }
 
 function isCitationToken(value: string): boolean {
-  return /^cite[^]+$/.test(value);
+  return /^(?:file)?cite[^]+$/.test(value);
 }
 
 function applyContentReferences(text: string, metadata: unknown): string {
@@ -512,24 +525,28 @@ function contentFromMessage(
   }
 
   const role = message.author?.role;
+  const isConversationRole = role === "assistant" || role === "user";
   const content = message.content;
   const assets: ExportAsset[] = [];
   const parts = isRecord(content) && Array.isArray(content.parts) ? content.parts : [];
   const rawText = parts
-      .map((part) => textFromPart(part, assets, usedAssetNames, usedAssetSources))
-      .filter(Boolean)
-      .join("\n\n")
-      .trim();
-  const text = rewriteDownloadLinks(
-    applyContentReferences(rawText, metadata),
-    assets,
-    usedAssetNames,
-    usedAssetSources
-  );
+    .map((part) => textFromPart(part, assets, usedAssetNames, usedAssetSources))
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+  const text = isConversationRole
+    ? rewriteDownloadLinks(
+        applyContentReferences(rawText, metadata),
+        assets,
+        usedAssetNames,
+        usedAssetSources
+      )
+    : "";
 
   collectNestedAssets(content, assets, usedAssetNames, usedAssetSources);
-  collectNestedAssets(message.metadata, assets, usedAssetNames, usedAssetSources);
-  appendMetadataAssets(message, assets, usedAssetNames, usedAssetSources);
+  if (isConversationRole) {
+    appendMetadataAssets(message, assets, usedAssetNames, usedAssetSources);
+  }
 
   if (!text && assets.length === 0) {
     return null;
