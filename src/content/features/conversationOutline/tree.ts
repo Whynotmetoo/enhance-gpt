@@ -242,11 +242,12 @@ function canonicalAssistantNodeIdForDomTurn(
 
   const matchingNodes = Array.from(nodes.values()).filter((node) => isCanonicalAssistantCandidate(node, turn));
 
-  return (
-    uniqueNodeId(matchingNodes.filter((node) => node.children.length > 0 && node.outlineItems.length > 0)) ??
-    uniqueNodeId(matchingNodes.filter((node) => node.outlineItems.length > 0)) ??
-    uniqueNodeId(matchingNodes.filter((node) => node.children.length > 0)) ??
-    uniqueNodeId(matchingNodes.filter((node) => Boolean(node.messageId)))
+  return uniqueNodeIdByPriority(
+    matchingNodes,
+    (node) => node.children.length > 0 && node.outlineItems.length > 0,
+    (node) => node.children.length > 0,
+    (node) => node.outlineItems.length > 0,
+    (node) => Boolean(node.messageId)
   );
 }
 
@@ -262,6 +263,20 @@ function isCanonicalAssistantCandidate(node: OutlineTreeNode, turn: DomOutlineTu
 
 function uniqueNodeId(nodes: OutlineTreeNode[]): string | null {
   return nodes.length === 1 ? nodes[0].id : null;
+}
+
+function uniqueNodeIdByPriority(
+  nodes: OutlineTreeNode[],
+  ...priorities: Array<(node: OutlineTreeNode) => boolean>
+): string | null {
+  for (const matchesPriority of priorities) {
+    const matchingNodes = nodes.filter(matchesPriority);
+    if (matchingNodes.length > 0) {
+      return uniqueNodeId(matchingNodes);
+    }
+  }
+
+  return null;
 }
 
 function isRequestPlaceholderNode(node: OutlineTreeNode): boolean {
