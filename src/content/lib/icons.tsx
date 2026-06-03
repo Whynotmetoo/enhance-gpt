@@ -84,6 +84,14 @@ export function ChatGptDownloadIcon(props: IconProps): ReactElement {
   );
 }
 
+export function ChatGptSettingsIcon(props: IconProps): ReactElement {
+  return (
+    <svg aria-hidden="true" className="icon" height="20" width="20" {...props}>
+      <use href="/cdn/assets/sprites-core-7f707844.svg#44c6db" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function ChatGptTrashIcon(props: IconProps): ReactElement {
   return (
     <FilledIconBase {...props}>

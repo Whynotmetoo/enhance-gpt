@@ -5,14 +5,15 @@ import { createPortal } from "react-dom";
 type AlertModalProps = {
   children: ReactNode;
   contentClassName: string;
-  description: string;
-  descriptionClassName: string;
+  description?: string;
+  descriptionClassName?: string;
   disableEscape?: boolean;
   initialFocusRef?: RefObject<HTMLElement | null>;
   onClose: () => void;
   open: boolean;
   overlayClassName: string;
-  title: string;
+  role?: "alertdialog" | "dialog";
+  title: ReactNode;
   titleClassName: string;
 };
 
@@ -42,6 +43,7 @@ export function AlertModal({
   onClose,
   open,
   overlayClassName,
+  role = "alertdialog",
   title,
   titleClassName
 }: AlertModalProps): ReactElement | null {
@@ -114,20 +116,22 @@ export function AlertModal({
     <>
       <div className={overlayClassName} />
       <div
-        aria-describedby={descriptionId}
+        aria-describedby={description ? descriptionId : undefined}
         aria-labelledby={titleId}
         aria-modal="true"
         className={contentClassName}
         ref={dialogRef}
-        role="alertdialog"
+        role={role}
         tabIndex={-1}
       >
         <h2 className={titleClassName} id={titleId}>
           {title}
         </h2>
-        <p className={descriptionClassName} id={descriptionId}>
-          {description}
-        </p>
+        {description ? (
+          <p className={descriptionClassName} id={descriptionId}>
+            {description}
+          </p>
+        ) : null}
         {children}
       </div>
     </>,

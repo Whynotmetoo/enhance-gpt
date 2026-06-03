@@ -1,5 +1,5 @@
 import type { ComponentPropsWithoutRef, ReactElement, ReactNode } from "react";
-import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { ARCHIVED_CHATS_SETTINGS_HASH, SUPPORT_EXTENSION_URL } from "../../shared/constants";
@@ -9,10 +9,14 @@ import {
   ChatGptDataControlsIcon,
   ChatGptDownloadIcon,
   ChatGptMoreIcon,
+  ChatGptSettingsIcon,
   ChatGptTrashIcon,
+  CloseIcon,
   HeartIcon
 } from "../lib/icons";
 import { debounce } from "../lib/dom";
+import { defaultEnhanceSettings, loadEnhanceSettings, saveEnhanceSettings } from "../lib/enhanceSettings";
+import type { EnhanceSettings } from "../lib/enhanceSettings";
 import {
   clearAllConversationsInPageContext,
   performConversationActionInPageContext,
@@ -63,6 +67,74 @@ type BulkTooltipButtonProps = ComponentPropsWithoutRef<"button"> & {
   label: string;
 };
 
+const nativeTocHiddenClass = "ecg-native-toc-hidden";
+const nativeSettingsSwitchClassName =
+  "radix-state-checked:bg-blue-400 focus-visible:ring-token-text-primary interactive-bg-control relative box-content aspect-7/4 shrink-0 rounded-full p-[2px] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:opacity-50 h-4";
+const nativeSettingsSwitchThumbClassName =
+  "radix-state-checked:translate-x-[calc(var(--to-end-unit,1)*100%*(7/4-1))] flex aspect-square h-full items-center justify-center rounded-full bg-white transition-transform duration-100";
+
+function isEnhanceGptElement(element: Element): boolean {
+  return Boolean(element.closest("#enhance-gpt-root"));
+}
+
+function nativePromptNavigationContainer(): HTMLElement | null {
+  const promptButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("button[aria-label^='Prompt ']")).filter(
+    (button) => {
+      const label = button.getAttribute("aria-label") ?? "";
+      return /^Prompt \d+$/.test(label) && !isEnhanceGptElement(button);
+    }
+  );
+
+  if (promptButtons.length < 5) {
+    return null;
+  }
+
+  const ancestorCounts = new Map<HTMLElement, number>();
+
+  promptButtons.forEach((button) => {
+    let ancestor = button.parentElement;
+    let depth = 0;
+
+    while (ancestor && ancestor !== document.body && depth < 5) {
+      ancestorCounts.set(ancestor, (ancestorCounts.get(ancestor) ?? 0) + 1);
+      ancestor = ancestor.parentElement;
+      depth += 1;
+    }
+  });
+
+  return (
+    Array.from(ancestorCounts.entries())
+      .filter(([element, count]) => {
+        if (count !== promptButtons.length || isEnhanceGptElement(element)) {
+          return false;
+        }
+
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.width <= 100 && rect.height > 0 && rect.height <= window.innerHeight * 0.6;
+      })
+      .map(([element]) => element)
+      .sort((a, b) => {
+        const aRect = a.getBoundingClientRect();
+        const bRect = b.getBoundingClientRect();
+        return aRect.width * aRect.height - bRect.width * bRect.height;
+      })[0] ?? null
+  );
+}
+
+function syncNativeTableOfContentsVisibility(hidden: boolean): void {
+  document.documentElement.toggleAttribute("data-ecg-hide-native-toc", hidden);
+
+  document.querySelectorAll<HTMLElement>(`.${nativeTocHiddenClass}`).forEach((element) => {
+    element.classList.remove(nativeTocHiddenClass);
+  });
+
+  if (!hidden) {
+    return;
+  }
+
+  nativePromptNavigationContainer()?.classList.add(nativeTocHiddenClass);
+}
+
 const BulkTooltipButton = forwardRef<HTMLButtonElement, BulkTooltipButtonProps>(function BulkTooltipButton(
   { children, label, type = "button", ...buttonProps },
   ref
@@ -91,11 +163,15 @@ export function ConversationBulkManager(): ReactElement | null {
   const [items, setItems] = useState<ConversationItem[]>([]);
   const [isSelectionModeActive, setIsSelectionModeActive] = useState(false);
   const [isArchiveMenuOpen, setIsArchiveMenuOpen] = useState(false);
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [archiveMenuPosition, setArchiveMenuPosition] = useState<ArchiveMenuPosition | null>(null);
   const [bulkDialog, setBulkDialog] = useState<BulkDialogState | null>(null);
+  const [settings, setSettings] = useState<EnhanceSettings>(defaultEnhanceSettings);
   const [toast, setToast] = useState<BulkToast | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [suppressedConversations, setSuppressedConversations] = useState<Map<string, number>>(() => new Map());
+  const hideNativeTocLabelId = useId();
+  const hideNativeTocDescriptionId = useId();
   const archiveMenuRootRef = useRef<HTMLDivElement>(null);
   const archiveMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const archiveMenuRef = useRef<HTMLDivElement>(null);
@@ -103,6 +179,7 @@ export function ConversationBulkManager(): ReactElement | null {
   const suppressedConversationsRef = useRef<Map<string, number>>(new Map());
   const bulkAbortControllerRef = useRef<AbortController | null>(null);
   const bulkCancelRef = useRef<HTMLButtonElement>(null);
+  const settingsCloseRef = useRef<HTMLButtonElement>(null);
 
   const selectedItems = useMemo(
     () => items.filter((item) => selectedIds.has(item.id)),
@@ -122,6 +199,45 @@ export function ConversationBulkManager(): ReactElement | null {
 
     return new Set(Array.from(suppressedIds).filter((id) => !authoritativeVisibleIds.has(id)));
   };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void loadEnhanceSettings().then((loadedSettings) => {
+      if (isMounted) {
+        setSettings(loadedSettings);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const hidden = settings.hideNativeTableOfContents;
+    const syncVisibility = () => syncNativeTableOfContentsVisibility(hidden);
+    const scheduleSync = debounce(syncVisibility, 120);
+    const observer = new MutationObserver(scheduleSync);
+
+    syncVisibility();
+    observer.observe(document.body, {
+      attributeFilter: ["aria-label"],
+      attributes: true,
+      childList: true,
+      subtree: true
+    });
+
+    return () => {
+      observer.disconnect();
+      scheduleSync.cancel();
+      if (!hidden) {
+        return;
+      }
+
+      syncNativeTableOfContentsVisibility(false);
+    };
+  }, [settings.hideNativeTableOfContents]);
 
   useEffect(() => {
     const update = () => {
@@ -622,6 +738,18 @@ export function ConversationBulkManager(): ReactElement | null {
     }
   };
 
+  const updateSettings = (updates: Partial<EnhanceSettings>) => {
+    setSettings((current) => {
+      const next = { ...current, ...updates };
+      void saveEnhanceSettings(next);
+      return next;
+    });
+  };
+
+  const toggleNativeTableOfContentsSetting = () => {
+    updateSettings({ hideNativeTableOfContents: !settings.hideNativeTableOfContents });
+  };
+
   const selectAllControl = headerControls
     ? createPortal(
         isSelectionModeActive ? (
@@ -734,6 +862,7 @@ export function ConversationBulkManager(): ReactElement | null {
               <ChatGptDownloadIcon />
               <span className="ecg-bulk-menu-item-label">Export selected chats</span>
             </button>
+            <div className="ecg-bulk-menu-separator" role="separator" />
             <button
               className="ecg-bulk-menu-item ecg-bulk-menu-item-danger"
               disabled={isBulkRunning}
@@ -757,6 +886,18 @@ export function ConversationBulkManager(): ReactElement | null {
               <ChatGptDataControlsIcon />
               <span className="ecg-bulk-menu-item-label">Manage archived chats</span>
             </a>
+            <button
+              className="ecg-bulk-menu-item"
+              role="menuitem"
+              type="button"
+              onClick={() => {
+                setIsArchiveMenuOpen(false);
+                setIsSettingsDialogOpen(true);
+              }}
+            >
+              <ChatGptSettingsIcon />
+              <span className="ecg-bulk-menu-item-label">Settings</span>
+            </button>
             <div className="ecg-bulk-menu-separator" role="separator" />
             <a
               className="ecg-bulk-menu-item"
@@ -800,6 +941,72 @@ export function ConversationBulkManager(): ReactElement | null {
       {actionControls}
       {archiveMenu}
       {toastElement}
+      <AlertModal
+        contentClassName="ecg-settings-dialog popover bg-token-bg-primary rounded-2xl shadow-long flex flex-col focus:outline-hidden overflow-hidden"
+        initialFocusRef={settingsCloseRef}
+        open={isSettingsDialogOpen}
+        overlayClassName="ecg-settings-dialog-overlay"
+        role="dialog"
+        title={
+          <>
+            <span
+              aria-hidden="true"
+              className="ecg-settings-dialog-title-icon"
+              style={{
+                WebkitMaskImage: `url("${extensionResourceUrl(bulkManagerIconPath)}")`,
+                maskImage: `url("${extensionResourceUrl(bulkManagerIconPath)}")`
+              }}
+            />
+            <span>Settings</span>
+          </>
+        }
+        titleClassName="ecg-settings-dialog-title"
+        onClose={() => setIsSettingsDialogOpen(false)}
+      >
+        <button
+          aria-label="Close"
+          className="ecg-settings-dialog-close"
+          ref={settingsCloseRef}
+          type="button"
+          onClick={() => setIsSettingsDialogOpen(false)}
+        >
+          <CloseIcon />
+        </button>
+        <section className="ecg-settings-section relative" aria-label="EnhanceGPT preferences">
+          <div className="ecg-settings-row border-token-border-light flex min-h-15 items-center border-b py-2 last-of-type:border-none">
+            <div className="w-full">
+              <div className="flex justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2" id={hideNativeTocLabelId}>
+                    Hide Native Table of Contents
+                  </div>
+                  <div className="text-token-text-tertiary my-1 text-xs text-balance pe-12" id={hideNativeTocDescriptionId}>
+                    Hide ChatGPT&apos;s built-in table of contents.
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    aria-checked={settings.hideNativeTableOfContents}
+                    aria-describedby={hideNativeTocDescriptionId}
+                    aria-labelledby={hideNativeTocLabelId}
+                    className={nativeSettingsSwitchClassName}
+                    data-state={settings.hideNativeTableOfContents ? "checked" : "unchecked"}
+                    role="switch"
+                    type="button"
+                    value="on"
+                    onClick={toggleNativeTableOfContentsSetting}
+                  >
+                    <span
+                      className={nativeSettingsSwitchThumbClassName}
+                      data-state={settings.hideNativeTableOfContents ? "checked" : "unchecked"}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </AlertModal>
       <AlertModal
         contentClassName="ecg-bulk-dialog"
         description={dialogDescription}
