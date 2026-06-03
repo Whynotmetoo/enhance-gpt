@@ -240,16 +240,32 @@ function canonicalAssistantNodeIdForDomTurn(
     return null;
   }
 
-  const matchingNodeIds = Array.from(nodes.values())
-    .filter((node) =>
-      node.role === "assistant" &&
-      node.domTurnId === turn.domTurnId &&
-      node.id !== turn.id &&
-      (Boolean(node.messageId) || node.outlineItems.length > 0)
-    )
-    .map((node) => node.id);
+  const matchingNodes = Array.from(nodes.values()).filter((node) => isCanonicalAssistantCandidate(node, turn));
 
-  return matchingNodeIds.length === 1 ? matchingNodeIds[0] : null;
+  return (
+    uniqueNodeId(matchingNodes.filter((node) => node.children.length > 0 && node.outlineItems.length > 0)) ??
+    uniqueNodeId(matchingNodes.filter((node) => node.outlineItems.length > 0)) ??
+    uniqueNodeId(matchingNodes.filter((node) => node.children.length > 0)) ??
+    uniqueNodeId(matchingNodes.filter((node) => Boolean(node.messageId)))
+  );
+}
+
+function isCanonicalAssistantCandidate(node: OutlineTreeNode, turn: DomOutlineTurn): boolean {
+  return (
+    node.role === "assistant" &&
+    node.domTurnId === turn.domTurnId &&
+    node.id !== turn.id &&
+    !isRequestPlaceholderNode(node) &&
+    (node.children.length > 0 || node.outlineItems.length > 0 || Boolean(node.messageId))
+  );
+}
+
+function uniqueNodeId(nodes: OutlineTreeNode[]): string | null {
+  return nodes.length === 1 ? nodes[0].id : null;
+}
+
+function isRequestPlaceholderNode(node: OutlineTreeNode): boolean {
+  return node.id.startsWith("request-placeholder-") || Boolean(node.messageId?.startsWith("request-placeholder-"));
 }
 
 function remapTurnsByDomTurnId(
