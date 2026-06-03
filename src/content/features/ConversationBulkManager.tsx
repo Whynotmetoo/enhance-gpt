@@ -122,8 +122,7 @@ function nativePromptNavigationContainer(): HTMLElement | null {
 }
 
 function syncNativeTableOfContentsVisibility(hidden: boolean): void {
-  document.documentElement.toggleAttribute("data-ecg-hide-native-toc", hidden);
-
+  document.documentElement.removeAttribute("data-ecg-hide-native-toc");
   document.querySelectorAll<HTMLElement>(`.${nativeTocHiddenClass}`).forEach((element) => {
     element.classList.remove(nativeTocHiddenClass);
   });
@@ -133,6 +132,7 @@ function syncNativeTableOfContentsVisibility(hidden: boolean): void {
   }
 
   nativePromptNavigationContainer()?.classList.add(nativeTocHiddenClass);
+  document.documentElement.setAttribute("data-ecg-hide-native-toc", "");
 }
 
 const BulkTooltipButton = forwardRef<HTMLButtonElement, BulkTooltipButtonProps>(function BulkTooltipButton(
