@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactElement } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { debounce } from "../lib/dom";
 import { fetchConversationOutlineTreeWithRetry } from "./conversationOutline/apiOutline";
 import { pendingScrollDelayMs } from "./conversationOutline/constants";
@@ -21,7 +21,13 @@ import {
   useRightSidePanel
 } from "./conversationOutline/hooks";
 import { visibleActiveItemId, visibleOutlineItems } from "./conversationOutline/rendering";
-import { nextPendingScroll, scrollContainerFor, scrollToOutlineItem } from "./conversationOutline/scroll";
+import {
+  nextPendingScroll,
+  resolveOutlineItemTarget,
+  scrollContainerFor,
+  scrollResolvedOutlineTarget,
+  scrollToOutlineItem
+} from "./conversationOutline/scroll";
 import { activePathItems, createEmptyOutlineTree, mergeDomOutlineTurns, treeHasOutlineItems } from "./conversationOutline/tree";
 import type { DomOutlineTurn, OutlineItem, OutlineSource, OutlineTree, PendingScroll, RenderedOutlineItem } from "./conversationOutline/types";
 
@@ -62,6 +68,7 @@ export function ConversationOutline(): ReactElement | null {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingScroll, setPendingScroll] = useState<PendingScroll | null>(null);
   const [cachedDomConversationId, setCachedDomConversationId] = useState<string | null>(null);
+  const navigationRequestId = useRef(0);
   const isRightSidePanelOpen = useRightSidePanel();
   const hasConversationStateActivity = useConversationStateActivity(conversationId, conversationLocation.changedAt);
   const hasNewConversationStateActivity = useNewConversationStateActivity(conversationId, conversationLocation.changedAt);
@@ -376,7 +383,22 @@ export function ConversationOutline(): ReactElement | null {
     });
   };
 
-  const handleOutlineItemNavigation = (item: RenderedOutlineItem) => {
+  const handleOutlineItemNavigation = async (item: RenderedOutlineItem) => {
+    const requestId = navigationRequestId.current + 1;
+    navigationRequestId.current = requestId;
+    setPendingScroll(null);
+
+    const outlineItem = items[item.originalIndex];
+    const target = outlineItem ? await resolveOutlineItemTarget(outlineItem) : null;
+    if (requestId !== navigationRequestId.current) {
+      return;
+    }
+
+    if (target) {
+      scrollResolvedOutlineTarget(target, "smooth");
+      return;
+    }
+
     const reachedExactTarget = scrollToOutlineItem(items, item.originalIndex, "smooth");
     setPendingScroll(
       reachedExactTarget

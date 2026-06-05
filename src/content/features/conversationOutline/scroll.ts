@@ -15,6 +15,8 @@ type MountedOutlineAnchor = {
   index: number;
 };
 
+const outlineTargetRemountTimeoutMs = 1_500;
+const outlineTargetRemountPollMs = 60;
 const smoothScrollAnimations = new WeakMap<HTMLElement, number>();
 
 function mountedAnchors(items: OutlineItem[]): MountedOutlineAnchor[] {
@@ -146,6 +148,55 @@ function scrollElementIntoView(element: HTMLElement, behavior: ScrollBehavior): 
   }
 
   return isAligned;
+}
+
+function targetContainerElement(item: OutlineItem): HTMLElement | null {
+  const element = connectedElement(item.element);
+  if (!element || item.headingIndex === null) {
+    return null;
+  }
+
+  if (element.matches("[data-turn-id], [data-message-id]")) {
+    return element;
+  }
+
+  return element.closest<HTMLElement>("[data-turn-id], [data-message-id]");
+}
+
+function waitForRemountFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, outlineTargetRemountPollMs);
+  });
+}
+
+export async function resolveOutlineItemTarget(item: OutlineItem): Promise<HTMLElement | null> {
+  const exactElement = exactOutlineElement(item);
+  if (exactElement) {
+    return exactElement;
+  }
+
+  const targetContainer = targetContainerElement(item);
+  if (!targetContainer) {
+    return null;
+  }
+
+  scrollElementIntoView(targetContainer, "auto");
+
+  const deadline = window.performance.now() + outlineTargetRemountTimeoutMs;
+  while (window.performance.now() < deadline) {
+    await waitForRemountFrame();
+
+    const remounted = exactOutlineElement(item);
+    if (remounted) {
+      return remounted;
+    }
+  }
+
+  return connectedElement(targetContainer);
+}
+
+export function scrollResolvedOutlineTarget(element: HTMLElement, behavior: ScrollBehavior): boolean {
+  return scrollElementIntoView(element, behavior);
 }
 
 function pendingScrollStep(container: HTMLElement, anchorIndex: number, targetIndex: number, targetLevel: number): number {
