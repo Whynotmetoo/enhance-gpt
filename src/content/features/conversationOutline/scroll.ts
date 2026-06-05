@@ -15,6 +15,13 @@ type MountedOutlineAnchor = {
   index: number;
 };
 
+type ResolvedOutlineTarget = {
+  element: HTMLElement;
+  exact: boolean;
+};
+
+const outlineTargetRemountTimeoutMs = 1_500;
+const outlineTargetRemountPollMs = 60;
 const smoothScrollAnimations = new WeakMap<HTMLElement, number>();
 
 function mountedAnchors(items: OutlineItem[]): MountedOutlineAnchor[] {
@@ -148,6 +155,65 @@ function scrollElementIntoView(element: HTMLElement, behavior: ScrollBehavior): 
   return isAligned;
 }
 
+function targetContainerElement(item: OutlineItem): HTMLElement | null {
+  if (item.headingIndex === null) {
+    return null;
+  }
+
+  const containerElement = connectedElement(item.containerElement);
+  if (containerElement) {
+    return containerElement;
+  }
+
+  const element = connectedElement(item.element);
+  if (!element) {
+    return null;
+  }
+
+  if (element.matches("[data-turn-id], [data-message-id]")) {
+    return element;
+  }
+
+  return element.closest<HTMLElement>("[data-turn-id], [data-message-id]");
+}
+
+function waitForRemountFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, outlineTargetRemountPollMs);
+  });
+}
+
+export async function resolveOutlineItemTarget(item: OutlineItem): Promise<ResolvedOutlineTarget | null> {
+  const exactElement = exactOutlineElement(item);
+  if (exactElement) {
+    return { element: exactElement, exact: true };
+  }
+
+  const targetContainer = targetContainerElement(item);
+  if (!targetContainer) {
+    return null;
+  }
+
+  scrollElementIntoView(targetContainer, "auto");
+
+  const deadline = window.performance.now() + outlineTargetRemountTimeoutMs;
+  while (window.performance.now() < deadline) {
+    await waitForRemountFrame();
+
+    const remounted = exactOutlineElement(item);
+    if (remounted) {
+      return { element: remounted, exact: true };
+    }
+  }
+
+  const fallbackContainer = connectedElement(targetContainer);
+  return fallbackContainer ? { element: fallbackContainer, exact: false } : null;
+}
+
+export function scrollResolvedOutlineTarget(element: HTMLElement, behavior: ScrollBehavior): boolean {
+  return scrollElementIntoView(element, behavior);
+}
+
 function pendingScrollStep(container: HTMLElement, anchorIndex: number, targetIndex: number, targetLevel: number): number {
   const indexDistance = Math.abs(targetIndex - anchorIndex);
   const baseStep = Math.max(
@@ -182,6 +248,12 @@ export function scrollToOutlineItem(items: OutlineItem[], index: number, behavio
   const exactElement = item ? exactOutlineElement(item) : null;
   if (exactElement) {
     return scrollElementIntoView(exactElement, behavior);
+  }
+
+  const targetContainer = item ? targetContainerElement(item) : null;
+  if (targetContainer) {
+    scrollElementIntoView(targetContainer, behavior);
+    return false;
   }
 
   const sectionAnchor = parentSectionAnchor(items, index);

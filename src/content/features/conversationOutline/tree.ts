@@ -120,7 +120,19 @@ export function activePathItems(tree: OutlineTree | null): OutlineItem[] {
     return [];
   }
 
-  return activePathNodeIds(tree).flatMap((nodeId) => tree.nodes.get(nodeId)?.outlineItems ?? []);
+  return activePathNodeIds(tree).flatMap((nodeId) => {
+    const node = tree.nodes.get(nodeId);
+    if (!node) {
+      return [];
+    }
+
+    const containerElement = connectedElement(node.element);
+
+    return node.outlineItems.map((item) => ({
+      ...item,
+      containerElement: containerElement ?? item.containerElement ?? null
+    }));
+  });
 }
 
 function sameOutlineItems(left: OutlineItem[], right: OutlineItem[]): boolean {
