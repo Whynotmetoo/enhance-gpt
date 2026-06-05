@@ -11,6 +11,7 @@ export type OutlineItem = {
   messageId: string | null;
   headingIndex: number | null;
   element: HTMLElement | null;
+  containerElement?: HTMLElement | null;
   source: OutlineSourceKind;
 };
 

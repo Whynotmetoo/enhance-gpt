@@ -404,6 +404,10 @@ function domHeadingItemsForMessage(messageId: string, apiItems: OutlineItem[]): 
       messageId,
       headingIndex,
       element,
+      containerElement:
+        apiItem?.containerElement ??
+        element.closest<HTMLElement>("[data-turn-id], [data-message-id]") ??
+        null,
       source: apiItem?.source ?? "dom"
     };
   });

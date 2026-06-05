@@ -394,8 +394,17 @@ export function ConversationOutline(): ReactElement | null {
       return;
     }
 
+    if (target?.exact) {
+      scrollResolvedOutlineTarget(target.element, "smooth");
+      return;
+    }
+
     if (target) {
-      scrollResolvedOutlineTarget(target, "smooth");
+      setPendingScroll({
+        attempts: 0,
+        id: item.id,
+        index: item.originalIndex
+      });
       return;
     }
 

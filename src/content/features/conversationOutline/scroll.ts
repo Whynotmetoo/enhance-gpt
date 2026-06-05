@@ -15,6 +15,11 @@ type MountedOutlineAnchor = {
   index: number;
 };
 
+type ResolvedOutlineTarget = {
+  element: HTMLElement;
+  exact: boolean;
+};
+
 const outlineTargetRemountTimeoutMs = 1_500;
 const outlineTargetRemountPollMs = 60;
 const smoothScrollAnimations = new WeakMap<HTMLElement, number>();
@@ -151,8 +156,17 @@ function scrollElementIntoView(element: HTMLElement, behavior: ScrollBehavior): 
 }
 
 function targetContainerElement(item: OutlineItem): HTMLElement | null {
+  if (item.headingIndex === null) {
+    return null;
+  }
+
+  const containerElement = connectedElement(item.containerElement);
+  if (containerElement) {
+    return containerElement;
+  }
+
   const element = connectedElement(item.element);
-  if (!element || item.headingIndex === null) {
+  if (!element) {
     return null;
   }
 
@@ -169,10 +183,10 @@ function waitForRemountFrame(): Promise<void> {
   });
 }
 
-export async function resolveOutlineItemTarget(item: OutlineItem): Promise<HTMLElement | null> {
+export async function resolveOutlineItemTarget(item: OutlineItem): Promise<ResolvedOutlineTarget | null> {
   const exactElement = exactOutlineElement(item);
   if (exactElement) {
-    return exactElement;
+    return { element: exactElement, exact: true };
   }
 
   const targetContainer = targetContainerElement(item);
@@ -188,11 +202,12 @@ export async function resolveOutlineItemTarget(item: OutlineItem): Promise<HTMLE
 
     const remounted = exactOutlineElement(item);
     if (remounted) {
-      return remounted;
+      return { element: remounted, exact: true };
     }
   }
 
-  return connectedElement(targetContainer);
+  const fallbackContainer = connectedElement(targetContainer);
+  return fallbackContainer ? { element: fallbackContainer, exact: false } : null;
 }
 
 export function scrollResolvedOutlineTarget(element: HTMLElement, behavior: ScrollBehavior): boolean {
@@ -233,6 +248,12 @@ export function scrollToOutlineItem(items: OutlineItem[], index: number, behavio
   const exactElement = item ? exactOutlineElement(item) : null;
   if (exactElement) {
     return scrollElementIntoView(exactElement, behavior);
+  }
+
+  const targetContainer = item ? targetContainerElement(item) : null;
+  if (targetContainer) {
+    scrollElementIntoView(targetContainer, behavior);
+    return false;
   }
 
   const sectionAnchor = parentSectionAnchor(items, index);
