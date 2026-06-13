@@ -5,6 +5,7 @@ export const checkboxClass = "ecg-conversation-checkbox";
 export const selectedRowClass = "ecg-conversation-row-selected";
 export const suppressedRowClass = "ecg-conversation-row-suppressed";
 export const bulkManagerIconPath = "icons/icon-transparent.svg";
+export const bulkOperationIconPath = "icons/bulk-operation.png";
 
 const headerActionsHostAttribute = "data-ecg-bulk-actions-host";
 const headerClass = "ecg-recents-header-row";

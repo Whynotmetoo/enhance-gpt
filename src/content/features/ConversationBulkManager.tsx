@@ -8,7 +8,6 @@ import {
   ChatGptArchiveIcon,
   ChatGptDataControlsIcon,
   ChatGptDownloadIcon,
-  ChatGptMoreIcon,
   ChatGptSettingsIcon,
   ChatGptTrashIcon,
   CloseIcon,
@@ -24,6 +23,7 @@ import {
 } from "../lib/chatGptApiBridge";
 import {
   bulkManagerIconPath,
+  bulkOperationIconPath,
   checkboxClass,
   clearConversationControls,
   clearHeaderControls,
@@ -774,30 +774,6 @@ export function ConversationBulkManager(): ReactElement | null {
     ? createPortal(
         <Tooltip.Provider delayDuration={350}>
           <div aria-label="Conversation batch operations" className="ecg-bulk-header-actions" role="toolbar">
-            {isSelectionModeActive ? (
-              <>
-                <BulkTooltipButton
-                  aria-label="Delete selected conversations"
-                  className="ecg-bulk-action-button ecg-bulk-native-action-button"
-                  disabled={!hasSelectedItems || isBulkRunning}
-                  label="Delete selected conversations"
-                  type="button"
-                  onClick={() => requestBulkAction("delete")}
-                >
-                  <ChatGptTrashIcon />
-                </BulkTooltipButton>
-                <BulkTooltipButton
-                  aria-label="Archive selected conversations"
-                  className="ecg-bulk-action-button ecg-bulk-native-action-button"
-                  disabled={!hasSelectedItems || isBulkRunning}
-                  label="Archive selected conversations"
-                  type="button"
-                  onClick={() => requestBulkAction("archive")}
-                >
-                  <ChatGptArchiveIcon />
-                </BulkTooltipButton>
-              </>
-            ) : null}
             <BulkTooltipButton
               aria-label={isSelectionModeActive ? "Disable batch operations" : "Enable batch operations"}
               aria-pressed={isSelectionModeActive}
@@ -821,16 +797,24 @@ export function ConversationBulkManager(): ReactElement | null {
               <BulkTooltipButton
                 aria-expanded={isArchiveMenuOpen}
                 aria-haspopup="menu"
-                aria-label="Open more options"
-                className="ecg-bulk-action-button"
+                aria-label="Open operation options"
+                className="ecg-bulk-action-button ecg-bulk-operation-button"
                 data-active={isArchiveMenuOpen}
+                data-bulk-active={isSelectionModeActive && hasSelectedItems ? "true" : undefined}
                 disabled={isBulkRunning}
-                label="More"
+                label={isSelectionModeActive ? "Choose a bulk operation" : "Operation options"}
                 ref={archiveMenuTriggerRef}
                 type="button"
                 onClick={() => setIsArchiveMenuOpen((value) => !value)}
               >
-                <ChatGptMoreIcon />
+                <span
+                  aria-hidden="true"
+                  className="ecg-bulk-operation-icon"
+                  style={{
+                    WebkitMaskImage: `url("${extensionResourceUrl(bulkOperationIconPath)}")`,
+                    maskImage: `url("${extensionResourceUrl(bulkOperationIconPath)}")`
+                  }}
+                />
               </BulkTooltipButton>
             </div>
           </div>
@@ -843,12 +827,38 @@ export function ConversationBulkManager(): ReactElement | null {
     isArchiveMenuOpen && archiveMenuPosition
       ? createPortal(
           <div
-            aria-label="More options"
+            aria-label="Operation options"
             className="ecg-bulk-menu"
             ref={archiveMenuRef}
             role="menu"
             style={{ left: archiveMenuPosition.left, top: archiveMenuPosition.top }}
           >
+            <button
+              className="ecg-bulk-menu-item ecg-bulk-menu-item-danger"
+              disabled={!hasSelectedItems || isBulkRunning}
+              role="menuitem"
+              type="button"
+              onClick={() => {
+                setIsArchiveMenuOpen(false);
+                requestBulkAction("delete");
+              }}
+            >
+              <ChatGptTrashIcon />
+              <span className="ecg-bulk-menu-item-label">Delete selected chats</span>
+            </button>
+            <button
+              className="ecg-bulk-menu-item"
+              disabled={!hasSelectedItems || isBulkRunning}
+              role="menuitem"
+              type="button"
+              onClick={() => {
+                setIsArchiveMenuOpen(false);
+                requestBulkAction("archive");
+              }}
+            >
+              <ChatGptArchiveIcon />
+              <span className="ecg-bulk-menu-item-label">Archive selected chats</span>
+            </button>
             <button
               className="ecg-bulk-menu-item"
               disabled={!hasSelectedItems || isBulkRunning}
