@@ -30,7 +30,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["page-context.js", "icons/icon-transparent.svg"],
+      "resources": ["page-context.js", "icons/icon-transparent.svg", "icons/bulk-operation.png"],
       "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"]
     }
   ],
