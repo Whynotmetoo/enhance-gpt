@@ -9,11 +9,15 @@
   <a href="https://www.npmjs.com/"><img src="https://img.shields.io/badge/npm-%3E%3D10-cb3837?logo=npm&logoColor=white" alt="npm >=10"></a>
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3"><img src="https://img.shields.io/badge/Chrome-Manifest%20V3-4285f4?logo=googlechrome&logoColor=white" alt="Chrome Manifest V3"></a>
 </p>
-<div align="center">
-    <b>English</b> · <a href="README.zh-CN.md">简体中文</a>
-</div>
-<br>
+<p align="center">
+  <b>English</b> · <a href="README.zh-CN.md">简体中文</a>
+</p>
+
 EnhanceGPT is a Chrome extension that adds native-feeling bulk chat management, reusable prompt snippets, and conversation outlines to the ChatGPT web app. It is implemented as a restrained augmentation layer, avoiding full-page modals, heavy surfaces, and layout-shifting DOM changes.
+
+<p align="center">
+  <a href="#install">Install</a> • <a href="#development">Development</a> • <a href="#feature-showcase">Feature Showcase</a> • <a href="#implementation-notes">Implementation Notes</a>
+</p>
 
 ## Key Features
 
@@ -46,6 +50,13 @@ EnhanceGPT is a Chrome extension that adds native-feeling bulk chat management, 
   </tr>
 </table>
 
+## Install
+
+Install EnhanceGPT from your browser's extension store:
+
+- [Chrome Web Store](https://chromewebstore.google.com/detail/enhancegpt/lmldndbkafhldohcojnifbgcodmmbnjg)
+- [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/aaanmffndkllpimlfoomliognpnocbnf)
+
 ## Requirements
 
 - Node.js 20 or newer
@@ -58,7 +69,7 @@ EnhanceGPT is a Chrome extension that adds native-feeling bulk chat management, 
 npm install
 ```
 
-## Build And Load In Chrome
+Build And Load In Chrome
 
 ```bash
 npm run build

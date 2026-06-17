@@ -9,12 +9,15 @@
   <a href="https://www.npmjs.com/"><img src="https://img.shields.io/badge/npm-%3E%3D10-cb3837?logo=npm&logoColor=white" alt="npm >=10"></a>
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3"><img src="https://img.shields.io/badge/Chrome-Manifest%20V3-4285f4?logo=googlechrome&logoColor=white" alt="Chrome Manifest V3"></a>
 </p>
-<div align="center">
+<p align="center">
   <a href="README.md">English</a> · <b>简体中文</b>
-</div>
-<br>
+</p>
 
 EnhanceGPT 是一个 Chrome 扩展，为 ChatGPT 网页端增加贴近原生体验的批量会话管理、常用提示词片段和会话大纲。它作为轻量增强层实现，避免全屏弹窗、厚重界面和明显的布局位移。
+
+<p align="center">
+  快速跳转：<a href="#安装">安装</a> • <a href="#开发">开发</a> • <a href="#功能展示">功能展示</a> • <a href="#实现说明">实现说明</a>
+</p>
 
 ## 主要功能
 
@@ -47,6 +50,13 @@ EnhanceGPT 是一个 Chrome 扩展，为 ChatGPT 网页端增加贴近原生体�
   </tr>
 </table>
 
+## 安装
+
+可以直接从对应浏览器扩展商店安装 EnhanceGPT：
+
+- [Chrome 网上应用店](https://chromewebstore.google.com/detail/enhancegpt/lmldndbkafhldohcojnifbgcodmmbnjg)
+- [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/aaanmffndkllpimlfoomliognpnocbnf)
+
 ## 环境要求
 
 - Node.js 20 或更高版本
@@ -59,7 +69,7 @@ EnhanceGPT 是一个 Chrome 扩展，为 ChatGPT 网页端增加贴近原生体�
 npm install
 ```
 
-## 构建并加载到 Chrome
+构建并加载到 Chrome
 
 ```bash
 npm run build
