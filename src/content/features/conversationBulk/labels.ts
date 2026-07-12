@@ -39,10 +39,11 @@ export function completionToastMessage(
   if (action === "delete" && scope === "all" && failed.length === 0) {
     successMessage = t("bulk_toast_deleted_all");
   } else {
+    const actionKey = action === "delete" ? "deleted" : action === "archive" ? "archived" : "exported";
     if (succeeded === 1) {
-      successMessage = t(`bulk_toast_${action}_singular` as MessageKey);
+      successMessage = t(`bulk_toast_${actionKey}_singular` as MessageKey);
     } else {
-      successMessage = t(`bulk_toast_${action}_plural` as MessageKey, [String(succeeded)]);
+      successMessage = t(`bulk_toast_${actionKey}_plural` as MessageKey, [String(succeeded)]);
     }
   }
 
