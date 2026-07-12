@@ -10,7 +10,7 @@
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3"><img src="https://img.shields.io/badge/Chrome-Manifest%20V3-4285f4?logo=googlechrome&logoColor=white" alt="Chrome Manifest V3"></a>
 </p>
 <p align="center">
-  <b>English</b> · <a href="README.zh-CN.md">简体中文</a>
+  <b>English</b> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.fr.md">Français</a> · <a href="README.es.md">Español</a> · <a href="README.ja.md">日本語</a> · <a href="README.pt.md">Português</a>
 </p>
 
 EnhanceGPT is a Chrome extension that adds native-feeling bulk chat management, reusable prompt snippets, and conversation outlines to the ChatGPT web app. It is implemented as a restrained augmentation layer, avoiding full-page modals, heavy surfaces, and layout-shifting DOM changes.
