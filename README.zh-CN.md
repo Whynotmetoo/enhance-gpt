@@ -10,7 +10,7 @@
   <a href="https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3"><img src="https://img.shields.io/badge/Chrome-Manifest%20V3-4285f4?logo=googlechrome&logoColor=white" alt="Chrome Manifest V3"></a>
 </p>
 <p align="center">
-  <a href="README.md">English</a> · <b>简体中文</b>
+  <a href="README.md">English</a> · <b>简体中文</b> · <a href="README.fr.md">Français</a> · <a href="README.es.md">Español</a> · <a href="README.ja.md">日本語</a> · <a href="README.pt.md">Português</a>
 </p>
 
 EnhanceGPT 是一个 Chrome 扩展，为 ChatGPT 网页端增加贴近原生体验的批量会话管理、提示词管理和会话大纲。它作为轻量增强层实现，避免全屏弹窗、厚重界面和明显的布局位移。
