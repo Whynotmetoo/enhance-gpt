@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { t } from "../../shared/i18n";
 import {
   EXTENSION_LISTING_URL,
   GITHUB_REPOSITORY_URL
@@ -121,7 +122,7 @@ export function FirstRunIntroModal(): ReactElement | null {
   return createPortal(
     <>
       <button
-        aria-label="Close EnhanceGPT welcome"
+        aria-label={t("intro_close_welcome_aria")}
         className="ecg-intro-overlay"
         type="button"
         onClick={dismiss}
@@ -140,11 +141,11 @@ export function FirstRunIntroModal(): ReactElement | null {
             <img src={extensionResourceUrl("icons/icon-transparent.svg")} alt="" width="34" height="34" />
           </span>
           <div>
-            <p className="ecg-intro-eyebrow">Welcome</p>
-            <h2 id={titleId}>EnhanceGPT is ready</h2>
+            <p className="ecg-intro-eyebrow">{t("intro_welcome")}</p>
+            <h2 id={titleId}>{t("intro_ready")}</h2>
           </div>
           <button
-            aria-label="Close"
+            aria-label={t("intro_close_aria")}
             className="ecg-intro-close"
             ref={closeButtonRef}
             type="button"
@@ -156,37 +157,35 @@ export function FirstRunIntroModal(): ReactElement | null {
 
         <div className="ecg-intro-body">
           <p className="ecg-intro-lede" id={descriptionId}>
-            EnhanceGPT adds lightweight, native-feeling, and non-intrusive UI enhancements to
-            ChatGPT.
+            {t("intro_lede")}
           </p>
 
           <div className="ecg-intro-feature-grid" aria-label="Included enhancements">
-            <span>Bulk chat management</span>
-            <span>Reusable prompt snippets</span>
-            <span>Conversation outlines</span>
+            <span>{t("intro_feature_bulk")}</span>
+            <span>{t("intro_feature_prompt")}</span>
+            <span>{t("intro_feature_outline")}</span>
           </div>
 
           <section className="ecg-intro-privacy" aria-labelledby="ecg-intro-privacy-title">
-            <h3 id="ecg-intro-privacy-title">Data and privacy</h3>
+            <h3 id="ecg-intro-privacy-title">{t("intro_privacy_title")}</h3>
             <p>
-              Your EnhanceGPT data is stored entirely in your local browser. It is not sent to
-              third-party servers, and you stay in control of what you save or remove.
+              {t("intro_privacy_desc")}
             </p>
           </section>
 
           <nav className="ecg-intro-links" aria-label="EnhanceGPT links">
             <a href={GITHUB_REPOSITORY_URL} target="_blank" rel="noreferrer">
-              GitHub repository
+              {t("intro_link_github")}
             </a>
             <a href={EXTENSION_LISTING_URL} target="_blank" rel="noreferrer">
-              Plugin site
+              {t("intro_link_plugin")}
             </a>
           </nav>
         </div>
 
         <footer className="ecg-intro-footer">
           <button className="ecg-intro-primary" type="button" onClick={dismiss}>
-            Get started
+            {t("intro_get_started")}
           </button>
         </footer>
       </section>

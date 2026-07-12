@@ -3,6 +3,7 @@ import * as Tooltip from "@radix-ui/react-tooltip";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { t } from "../../shared/i18n";
 import type { SavedPrompt } from "../../shared/promptTypes";
 import { AlertModal } from "../components/AlertModal";
 import { loadPrompts, savePrompts } from "../lib/browserStorage";
@@ -57,8 +58,8 @@ export function PromptManager(): ReactElement | null {
     );
   }, [draft, editedPrompt, editorMode]);
   const hasBlockingEditor = hasUnsavedDraft;
-  const titleError = draft.submitted && draft.title.trim() === "" ? "Title is required" : null;
-  const bodyError = draft.submitted && draft.body.trim() === "" ? "Prompt is required" : null;
+  const titleError = draft.submitted && draft.title.trim() === "" ? t("prompt_validation_title_required") : null;
+  const bodyError = draft.submitted && draft.body.trim() === "" ? t("prompt_validation_body_required") : null;
 
   const closeCleanEditor = useCallback((): void => {
     if (editorMode && !hasUnsavedDraft) {
@@ -138,7 +139,7 @@ export function PromptManager(): ReactElement | null {
         return;
       }
 
-      if (!window.confirm("Discard unsaved prompt changes?")) {
+      if (!window.confirm(t("prompt_confirm_discard"))) {
         event.preventDefault();
         event.stopImmediatePropagation();
       }
@@ -374,7 +375,7 @@ export function PromptManager(): ReactElement | null {
         <Tooltip.Trigger asChild>
           <button
             aria-expanded={isOpen}
-            aria-label="Open prompt manager"
+            aria-label={t("prompt_trigger_aria")}
             className="ecg-prompt-trigger"
             type="button"
             onClick={togglePanel}
@@ -384,7 +385,7 @@ export function PromptManager(): ReactElement | null {
         </Tooltip.Trigger>
         <Tooltip.Portal>
           <Tooltip.Content className="ecg-prompt-tooltip" side="bottom" sideOffset={7}>
-            Prompt manager
+            {t("prompt_tooltip")}
             <Tooltip.Arrow className="ecg-prompt-tooltip-arrow" />
           </Tooltip.Content>
         </Tooltip.Portal>
@@ -394,14 +395,14 @@ export function PromptManager(): ReactElement | null {
   );
 
   const promptToDelete = prompts.find((prompt) => prompt.id === deletePromptId) ?? null;
-  const deletePromptDescription = `This removes ${
-    promptToDelete?.title ? `"${promptToDelete.title}"` : "this prompt"
-  } from your saved prompts.`;
+  const deletePromptDescription = promptToDelete?.title
+    ? t("prompt_alert_delete_desc_named", [promptToDelete.title])
+    : t("prompt_alert_delete_desc_generic");
   const panel = isOpen
     ? createPortal(
         <Tooltip.Provider delayDuration={350}>
           <div
-            aria-label="Prompt manager"
+            aria-label={t("prompt_panel_aria")}
             className="ecg-prompt-panel"
             role="dialog"
             onKeyDown={handlePanelKeyDown}
@@ -446,10 +447,10 @@ export function PromptManager(): ReactElement | null {
                         </span>
                       </button>
                       <span className="ecg-prompt-actions">
-                        <PromptIconButton disabled={hasBlockingEditor} label="Edit" onClick={() => openEditEditor(prompt)}>
+                        <PromptIconButton disabled={hasBlockingEditor} label={t("prompt_action_edit")} onClick={() => openEditEditor(prompt)}>
                           <ChatGptEditIcon />
                         </PromptIconButton>
-                        <PromptIconButton disabled={hasBlockingEditor} label="Delete" onClick={() => requestDeletePrompt(prompt.id)}>
+                        <PromptIconButton disabled={hasBlockingEditor} label={t("prompt_action_delete")} onClick={() => requestDeletePrompt(prompt.id)}>
                           <ChatGptTrashIcon />
                         </PromptIconButton>
                       </span>
@@ -457,7 +458,7 @@ export function PromptManager(): ReactElement | null {
                   </div>
                 ))
               ) : (
-                <div className="ecg-prompt-empty">No saved prompts</div>
+                <div className="ecg-prompt-empty">{t("prompt_empty")}</div>
               )}
             </div>
             {editorMode?.kind === "create" ? (
@@ -486,7 +487,7 @@ export function PromptManager(): ReactElement | null {
               initialFocusRef={deleteCancelRef}
               open={Boolean(promptToDelete)}
               overlayClassName="ecg-prompt-alert-overlay"
-              title="Delete prompt?"
+              title={t("prompt_alert_delete_title")}
               titleClassName="ecg-prompt-alert-title"
               onClose={closeDeletePromptDialog}
             >
@@ -497,7 +498,7 @@ export function PromptManager(): ReactElement | null {
                   type="button"
                   onClick={closeDeletePromptDialog}
                 >
-                  Cancel
+                  {t("prompt_alert_delete_cancel")}
                 </button>
                 <button
                   className="ecg-prompt-danger"
@@ -508,7 +509,7 @@ export function PromptManager(): ReactElement | null {
                     }
                   }}
                 >
-                  Delete
+                  {t("prompt_alert_delete_confirm")}
                 </button>
               </div>
             </AlertModal>

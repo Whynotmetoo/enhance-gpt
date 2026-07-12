@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactElement } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { t } from "../../shared/i18n";
 import { debounce } from "../lib/dom";
 import { fetchConversationOutlineTreeWithRetry } from "./conversationOutline/apiOutline";
 import { pendingScrollDelayMs } from "./conversationOutline/constants";
@@ -425,7 +426,7 @@ export function ConversationOutline(): ReactElement | null {
   }
 
   return (
-    <nav aria-label="Conversation outline" className="ecg-outline">
+    <nav aria-label={t("outline_aria")} className="ecg-outline">
       {renderedItems.map((item) => {
         const isExpanded = expandedIds.has(item.id);
 
@@ -441,7 +442,11 @@ export function ConversationOutline(): ReactElement | null {
             {item.hasChildren ? (
               <button
                 aria-expanded={isExpanded}
-                aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.label}`}
+                aria-label={
+                  isExpanded
+                    ? t("outline_collapse_aria", [item.label])
+                    : t("outline_expand_aria", [item.label])
+                }
                 className="ecg-outline-disclosure"
                 type="button"
                 onClick={() => toggleOutlineItem(item)}

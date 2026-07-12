@@ -1,4 +1,5 @@
 import type { ReactElement, RefObject } from "react";
+import { t } from "../../../shared/i18n";
 import type { PromptDraft, PromptEditorMode } from "./types";
 
 type PromptEditorProps = {
@@ -29,13 +30,13 @@ export function PromptEditor({
   return (
     <div className="ecg-prompt-editor">
       <div className="ecg-prompt-field">
-        <label htmlFor={titleId}>Title</label>
+        <label htmlFor={titleId}>{t("prompt_editor_title_label")}</label>
         <input
           aria-invalid={Boolean(titleError)}
           className="ecg-prompt-input"
           id={titleId}
           maxLength={120}
-          placeholder="Name this prompt"
+          placeholder={t("prompt_editor_title_placeholder")}
           ref={titleInputRef}
           value={draft.title}
           onChange={(event) => onChange({ ...draft, title: event.target.value })}
@@ -43,12 +44,12 @@ export function PromptEditor({
         {titleError ? <span className="ecg-prompt-error">{titleError}</span> : null}
       </div>
       <div className="ecg-prompt-field">
-        <label htmlFor={bodyId}>Prompt</label>
+        <label htmlFor={bodyId}>{t("prompt_editor_body_label")}</label>
         <textarea
           aria-invalid={Boolean(bodyError)}
           className="ecg-prompt-textarea"
           id={bodyId}
-          placeholder="Write the reusable prompt..."
+          placeholder={t("prompt_editor_body_placeholder")}
           rows={6}
           value={draft.body}
           onChange={(event) => onChange({ ...draft, body: event.target.value })}
@@ -57,7 +58,7 @@ export function PromptEditor({
       </div>
       <div className="ecg-prompt-editor-actions">
         <button className="ecg-prompt-secondary" type="button" onClick={onCancel}>
-          Cancel
+          {t("prompt_editor_cancel")}
         </button>
         <button
           className="ecg-prompt-primary"
@@ -66,7 +67,7 @@ export function PromptEditor({
           type="button"
           onClick={onSave}
         >
-          Save
+          {t("prompt_editor_save")}
         </button>
       </div>
     </div>
