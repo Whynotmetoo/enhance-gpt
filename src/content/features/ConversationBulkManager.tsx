@@ -2,6 +2,7 @@ import type { ComponentPropsWithoutRef, ReactElement, ReactNode } from "react";
 import { forwardRef, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as Tooltip from "@radix-ui/react-tooltip";
+import { t } from "../../shared/i18n";
 import { ARCHIVED_CHATS_SETTINGS_HASH, SUPPORT_EXTENSION_URL } from "../../shared/constants";
 import { AlertModal } from "../components/AlertModal";
 import {
@@ -59,7 +60,7 @@ import type {
 } from "./conversationBulk/types";
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Conversation action failed";
+  return error instanceof Error ? error.message : t("bulk_toast_failed_generic");
 }
 
 type BulkTooltipButtonProps = ComponentPropsWithoutRef<"button"> & {
@@ -754,7 +755,7 @@ export function ConversationBulkManager(): ReactElement | null {
     ? createPortal(
         isSelectionModeActive ? (
           <button
-            aria-label="Select all conversations"
+            aria-label={t("bulk_select_all_aria")}
             aria-pressed={allVisibleSelected}
             className="ecg-conversation-checkbox ecg-conversation-select-all"
             data-mixed={partiallySelected ? "true" : undefined}
@@ -773,14 +774,14 @@ export function ConversationBulkManager(): ReactElement | null {
   const actionControls = headerControls
     ? createPortal(
         <Tooltip.Provider delayDuration={350}>
-          <div aria-label="Conversation batch operations" className="ecg-bulk-header-actions" role="toolbar">
+          <div aria-label={t("bulk_toolbar_aria")} className="ecg-bulk-header-actions" role="toolbar">
             <BulkTooltipButton
-              aria-label={isSelectionModeActive ? "Disable batch operations" : "Enable batch operations"}
+              aria-label={isSelectionModeActive ? t("bulk_trigger_disable_aria") : t("bulk_trigger_enable_aria")}
               aria-pressed={isSelectionModeActive}
               className="ecg-bulk-action-button"
               data-active={isSelectionModeActive}
               disabled={isBulkRunning}
-              label={isSelectionModeActive ? "Disable batch operations" : "Enable batch operations"}
+              label={isSelectionModeActive ? t("bulk_trigger_disable_aria") : t("bulk_trigger_enable_aria")}
               type="button"
               onClick={() => setIsSelectionModeActive((value) => !value)}
             >
@@ -797,12 +798,12 @@ export function ConversationBulkManager(): ReactElement | null {
               <BulkTooltipButton
                 aria-expanded={isArchiveMenuOpen}
                 aria-haspopup="menu"
-                aria-label="Open operation options"
+                aria-label={t("bulk_operation_menu_aria_inactive")}
                 className="ecg-bulk-action-button ecg-bulk-operation-button"
                 data-active={isArchiveMenuOpen}
                 data-bulk-active={isSelectionModeActive && hasSelectedItems ? "true" : undefined}
                 disabled={isBulkRunning}
-                label={isSelectionModeActive ? "Choose a bulk operation" : "Operation options"}
+                label={isSelectionModeActive ? t("bulk_operation_menu_aria_active") : t("bulk_operation_menu_aria_inactive")}
                 ref={archiveMenuTriggerRef}
                 type="button"
                 onClick={() => setIsArchiveMenuOpen((value) => !value)}
@@ -827,7 +828,7 @@ export function ConversationBulkManager(): ReactElement | null {
     isArchiveMenuOpen && archiveMenuPosition
       ? createPortal(
           <div
-            aria-label="Operation options"
+            aria-label={t("bulk_operation_menu_aria_inactive")}
             className="ecg-bulk-menu"
             ref={archiveMenuRef}
             role="menu"
@@ -844,7 +845,7 @@ export function ConversationBulkManager(): ReactElement | null {
               }}
             >
               <ChatGptTrashIcon />
-              <span className="ecg-bulk-menu-item-label">Delete selected chats</span>
+              <span className="ecg-bulk-menu-item-label">{t("bulk_menu_delete_selected")}</span>
             </button>
             <button
               className="ecg-bulk-menu-item"
@@ -857,7 +858,7 @@ export function ConversationBulkManager(): ReactElement | null {
               }}
             >
               <ChatGptArchiveIcon />
-              <span className="ecg-bulk-menu-item-label">Archive selected chats</span>
+              <span className="ecg-bulk-menu-item-label">{t("bulk_menu_archive_selected")}</span>
             </button>
             <button
               className="ecg-bulk-menu-item"
@@ -870,7 +871,7 @@ export function ConversationBulkManager(): ReactElement | null {
               }}
             >
               <ChatGptDownloadIcon />
-              <span className="ecg-bulk-menu-item-label">Export selected chats</span>
+              <span className="ecg-bulk-menu-item-label">{t("bulk_menu_export_selected")}</span>
             </button>
             <div className="ecg-bulk-menu-separator" role="separator" />
             <button
@@ -881,7 +882,7 @@ export function ConversationBulkManager(): ReactElement | null {
               onClick={requestDeleteAllConversations}
             >
               <ChatGptTrashIcon />
-              <span className="ecg-bulk-menu-item-label">Delete all chats</span>
+              <span className="ecg-bulk-menu-item-label">{t("bulk_menu_delete_all")}</span>
             </button>
             <a
               className="ecg-bulk-menu-item"
@@ -894,7 +895,7 @@ export function ConversationBulkManager(): ReactElement | null {
               }}
             >
               <ChatGptDataControlsIcon />
-              <span className="ecg-bulk-menu-item-label">Manage archived chats</span>
+              <span className="ecg-bulk-menu-item-label">{t("bulk_menu_manage_archived")}</span>
             </a>
             <button
               className="ecg-bulk-menu-item"
@@ -906,7 +907,7 @@ export function ConversationBulkManager(): ReactElement | null {
               }}
             >
               <ChatGptSettingsIcon />
-              <span className="ecg-bulk-menu-item-label">Settings</span>
+              <span className="ecg-bulk-menu-item-label">{t("bulk_menu_settings")}</span>
             </button>
             <div className="ecg-bulk-menu-separator" role="separator" />
             <a
@@ -918,7 +919,7 @@ export function ConversationBulkManager(): ReactElement | null {
               onClick={() => setIsArchiveMenuOpen(false)}
             >
               <HeartIcon />
-              <span className="ecg-bulk-menu-item-label">Support this extension</span>
+              <span className="ecg-bulk-menu-item-label">{t("bulk_menu_support")}</span>
             </a>
           </div>,
           document.body
@@ -967,14 +968,14 @@ export function ConversationBulkManager(): ReactElement | null {
                 maskImage: `url("${extensionResourceUrl(bulkManagerIconPath)}")`
               }}
             />
-            <span>Settings</span>
+            <span>{t("bulk_settings_title")}</span>
           </>
         }
         titleClassName="ecg-settings-dialog-title"
         onClose={() => setIsSettingsDialogOpen(false)}
       >
         <button
-          aria-label="Close"
+          aria-label={t("bulk_settings_close_aria")}
           className="ecg-settings-dialog-close"
           ref={settingsCloseRef}
           type="button"
@@ -982,16 +983,16 @@ export function ConversationBulkManager(): ReactElement | null {
         >
           <CloseIcon />
         </button>
-        <section className="ecg-settings-section relative" aria-label="EnhanceGPT preferences">
+        <section className="ecg-settings-section relative" aria-label={t("bulk_settings_section_aria")}>
           <div className="ecg-settings-row border-token-border-light flex min-h-15 items-center border-b py-2 last-of-type:border-none">
             <div className="w-full">
               <div className="flex justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2" id={hideNativeTocLabelId}>
-                    Hide Native Table of Contents
+                    {t("bulk_settings_hide_toc_label")}
                   </div>
                   <div className="text-token-text-tertiary my-1 text-xs text-balance pe-12" id={hideNativeTocDescriptionId}>
-                    Hide ChatGPT&apos;s built-in table of contents.
+                    {t("bulk_settings_hide_toc_desc")}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -1041,7 +1042,7 @@ export function ConversationBulkManager(): ReactElement | null {
               type="button"
               onClick={closeBulkDialog}
             >
-              Cancel
+              {t("bulk_dialog_cancel")}
             </button>
             <button className={confirmButtonClassName} type="button" onClick={confirmBulkAction}>
               {confirmButtonLabel}

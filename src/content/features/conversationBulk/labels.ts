@@ -1,32 +1,32 @@
 import type { BulkAction, BulkDialogState, BulkFailure, BulkScope } from "./types";
+import { t, type MessageKey } from "../../../shared/i18n";
 
 export function actionProgressLabel(action: BulkAction): string {
   if (action === "delete") {
-    return "Deleting";
+    return t("bulk_progress_delete");
   }
-  return action === "archive" ? "Archiving" : "Exporting";
+  return action === "archive" ? t("bulk_progress_archive") : t("bulk_progress_export");
 }
 
 export function actionProgressTitle(action: BulkAction): string {
-  return `${actionProgressLabel(action)} chats...`;
+  if (action === "delete") {
+    return t("bulk_dialog_title_deleting_chats");
+  }
+  return action === "archive" ? t("bulk_dialog_title_archiving_chats") : t("bulk_dialog_title_exporting_chats");
 }
 
 export function actionPastLabel(action: BulkAction): string {
   if (action === "delete") {
-    return "Deleted";
+    return t("bulk_past_delete");
   }
-  return action === "archive" ? "Archived" : "Exported";
+  return action === "archive" ? t("bulk_past_archive") : t("bulk_past_export");
 }
 
 export function actionConfirmLabel(action: BulkAction): string {
   if (action === "delete") {
-    return "Confirm deletion";
+    return t("bulk_confirm_delete");
   }
-  return action === "archive" ? "Confirm archive" : "Export";
-}
-
-export function pluralizeConversation(count: number): string {
-  return `${count} conversation${count === 1 ? "" : "s"}`;
+  return action === "archive" ? t("bulk_confirm_archive") : t("bulk_confirm_export");
 }
 
 export function completionToastMessage(
@@ -35,14 +35,26 @@ export function completionToastMessage(
   failed: BulkFailure[],
   scope: BulkScope
 ): string {
-  const successMessage =
-    action === "delete" && scope === "all" && failed.length === 0
-      ? "Deleted all chats."
-      : `${actionPastLabel(action)} ${pluralizeConversation(succeeded)}.`;
-  const failureMessage =
-    failed.length > 0
-      ? ` ${failed.length} failed${failed[0]?.error ? `: ${failed[0].error}` : "."}`
-      : "";
+  let successMessage = "";
+  if (action === "delete" && scope === "all" && failed.length === 0) {
+    successMessage = t("bulk_toast_deleted_all");
+  } else {
+    if (succeeded === 1) {
+      successMessage = t(`bulk_toast_${action}_singular` as MessageKey);
+    } else {
+      successMessage = t(`bulk_toast_${action}_plural` as MessageKey, [String(succeeded)]);
+    }
+  }
+
+  let failureMessage = "";
+  if (failed.length > 0) {
+    const err = failed[0]?.error ? `: ${failed[0].error}` : ".";
+    if (failed.length === 1) {
+      failureMessage = t("bulk_toast_failed_singular", [err]);
+    } else {
+      failureMessage = t("bulk_toast_failed_plural", [String(failed.length), err]);
+    }
+  }
 
   return `${successMessage}${failureMessage}`;
 }
@@ -50,38 +62,53 @@ export function completionToastMessage(
 export function bulkDialogTitle(dialog: BulkDialogState | null): string {
   if (dialog?.status === "running") {
     return dialog.scope === "all" && dialog.action === "delete"
-      ? "Deleting all chats..."
+      ? t("bulk_dialog_title_deleting_all")
       : actionProgressTitle(dialog.action);
   }
 
   if (dialog?.status === "confirm") {
     if (dialog.scope === "all" && dialog.action === "delete") {
-      return "Clear your chat history - are you sure?";
+      return t("bulk_dialog_title_confirm_delete_all");
     }
 
     if (dialog.action === "delete") {
-      return "Delete chats?";
+      return t("bulk_dialog_title_confirm_delete");
     }
 
-    return dialog.action === "archive" ? "Archive chats" : "Export chats";
+    return dialog.action === "archive" ? t("bulk_dialog_title_confirm_archive") : t("bulk_dialog_title_confirm_export");
   }
 
-  return "Confirm batch action";
+  return t("bulk_dialog_title_confirm_batch");
 }
 
 export function bulkDialogDescription(dialog: BulkDialogState | null): string {
   if (dialog?.status === "running") {
     return dialog.scope === "all" && dialog.action === "delete"
-      ? "Do not close this page until the operation finishes."
-      : `${dialog.remaining} of ${dialog.total} remaining. Do not close this page until the operation finishes.`;
+      ? t("bulk_dialog_desc_running_all")
+      : t("bulk_dialog_desc_running_remaining", [String(dialog.remaining), String(dialog.total)]);
   }
 
   if (dialog?.status === "confirm") {
-    return dialog.scope === "all" && dialog.action === "delete"
-      ? "This will delete all chats, including those in Projects and archived conversations."
-      : dialog.action === "export"
-        ? `This will export ${pluralizeConversation(dialog.items.length)} as Markdown. Conversations with assets will download as zip files.`
-        : `This will ${dialog.action} ${pluralizeConversation(dialog.items.length)}.`;
+    if (dialog.scope === "all" && dialog.action === "delete") {
+      return t("bulk_dialog_desc_confirm_delete_all");
+    }
+
+    if (dialog.action === "export") {
+      return dialog.items.length === 1
+        ? t("bulk_dialog_desc_confirm_export_singular")
+        : t("bulk_dialog_desc_confirm_export_plural", [String(dialog.items.length)]);
+    }
+
+    if (dialog.action === "delete") {
+      return dialog.items.length === 1
+        ? t("bulk_dialog_desc_confirm_delete_singular")
+        : t("bulk_dialog_desc_confirm_delete_plural", [String(dialog.items.length)]);
+    }
+
+    // archive
+    return dialog.items.length === 1
+      ? t("bulk_dialog_desc_confirm_archive_singular")
+      : t("bulk_dialog_desc_confirm_archive_plural", [String(dialog.items.length)]);
   }
 
   return "";
