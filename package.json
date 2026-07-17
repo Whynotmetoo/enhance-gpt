@@ -1,6 +1,6 @@
 {
   "name": "enhance-gpt",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "A native-feeling UI enhancement layer for the ChatGPT web app.",
   "private": true,
   "type": "module",
