@@ -261,10 +261,12 @@ export function mergeDomOutlineTurns(
   const preserveExistingStructure = options.preserveExistingStructure ?? false;
   let changed = false;
 
-  pathTurns.forEach((turn) => {
+  pathTurns.forEach((turn, turnIndex) => {
     const existing = nodes.get(turn.id);
+    const preserveVirtualizedPrefixParent =
+      turnIndex === 0 && turn.parentId === null && existing !== undefined && existing.parentId !== null;
     const parentId =
-      preserveExistingStructure && existing
+      existing && (preserveExistingStructure || preserveVirtualizedPrefixParent)
         ? existing.parentId
         : turn.parentId === undefined
           ? (existing?.parentId ?? previousTurnId)
