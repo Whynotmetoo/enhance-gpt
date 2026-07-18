@@ -2,7 +2,11 @@ import type { CSSProperties, ReactElement } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { t } from "../../shared/i18n";
 import { debounce } from "../lib/dom";
-import { fetchConversationOutlineTreeWithRetry } from "./conversationOutline/apiOutline";
+import {
+  fetchConversationOutlineTreeWithFallback,
+  waitForFreshConversationOutlineTree
+} from "./conversationOutline/apiOutline";
+import { correctActiveBranchFromDom } from "./conversationOutline/activeBranch";
 import { pendingScrollDelayMs } from "./conversationOutline/constants";
 import {
   bindOutlineItems,
@@ -10,11 +14,7 @@ import {
   connectedElement,
   conversationMutationRoot
 } from "./conversationOutline/domOutline";
-import {
-  cachedDomOutlineTree,
-  forgetDomOutlineTree,
-  rememberDomOutlineTree
-} from "./conversationOutline/domOutlineCache";
+import { cachedOutlineTree, rememberOutlineTree } from "./conversationOutline/outlineCache";
 import {
   useConversationLocation,
   useConversationStateActivity,
@@ -46,7 +46,23 @@ function turnsOverlapTree(turns: DomOutlineTurn[], tree: OutlineTree): boolean {
     return true;
   }
 
-  return turns.some((turn) => tree.nodes.has(turn.id));
+  const treeIds = new Set<string>();
+  tree.nodes.forEach((node) => {
+    treeIds.add(node.id);
+    if (node.messageId) {
+      treeIds.add(node.messageId);
+    }
+    if (node.domTurnId) {
+      treeIds.add(node.domTurnId);
+    }
+  });
+
+  return turns.some(
+    (turn) =>
+      treeIds.has(turn.id) ||
+      Boolean(turn.messageId && treeIds.has(turn.messageId)) ||
+      Boolean(turn.domTurnId && treeIds.has(turn.domTurnId))
+  );
 }
 
 function treeWithDomTurns(conversationId: string, turns: DomOutlineTurn[], tree: OutlineTree | null): OutlineTree | null {
@@ -58,7 +74,9 @@ function treeWithDomTurns(conversationId: string, turns: DomOutlineTurn[], tree:
     return tree;
   }
 
-  return mergeDomOutlineTurns(tree ?? createEmptyOutlineTree(conversationId), turns);
+  const currentTree = tree ?? createEmptyOutlineTree(conversationId);
+  const correctedTree = correctActiveBranchFromDom(currentTree, turns, "dom");
+  return mergeDomOutlineTurns(correctedTree, turns);
 }
 
 export function ConversationOutline(): ReactElement | null {
@@ -68,7 +86,8 @@ export function ConversationOutline(): ReactElement | null {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingScroll, setPendingScroll] = useState<PendingScroll | null>(null);
-  const [cachedDomConversationId, setCachedDomConversationId] = useState<string | null>(null);
+  const [cachedOutlineConversationId, setCachedOutlineConversationId] = useState<string | null>(null);
+  const [freshApiTreeRevision, setFreshApiTreeRevision] = useState(0);
   const navigationRequestId = useRef(0);
   const isRightSidePanelOpen = useRightSidePanel();
   const hasConversationStateActivity = useConversationStateActivity(conversationId, conversationLocation.changedAt);
@@ -76,8 +95,8 @@ export function ConversationOutline(): ReactElement | null {
   const shouldUseImmediateDomFallback =
     conversationLocation.previousConversationId === null && hasNewConversationStateActivity;
   const [domFallbackReady, setDomFallbackReady] = useState(false);
-  const isUsingCachedDomTree =
-    cachedDomConversationId === conversationId && source.mode === "dom" && source.tree !== null;
+  const isUsingCachedOutlineTree =
+    cachedOutlineConversationId === conversationId && source.tree !== null;
   const items = useMemo<OutlineItem[]>(() => bindOutlineItems(activePathItems(source.tree)), [source.tree]);
   const renderedItems = useMemo(() => visibleOutlineItems(items, expandedIds), [items, expandedIds]);
 
@@ -96,57 +115,74 @@ export function ConversationOutline(): ReactElement | null {
       setSource({ conversationId: null, mode: "dom", tree: null });
       setActiveId(null);
       setPendingScroll(null);
-      setCachedDomConversationId(null);
+      setCachedOutlineConversationId(null);
       return;
     }
 
-    const cachedTree = cachedDomOutlineTree(conversationId);
-    if (cachedTree) {
+    const cached = cachedOutlineTree(conversationId);
+    if (cached) {
       const turns = collectDomOutlineTurns();
-      setSource({ conversationId, mode: "dom", tree: treeWithDomTurns(conversationId, turns, cachedTree) });
+      const tree = turns.length > 0 && turnsOverlapTree(turns, cached.tree)
+        ? correctActiveBranchFromDom(cached.tree, turns, cached.mode)
+        : cached.tree;
+      setSource({ conversationId, mode: cached.mode, tree });
       setActiveId(null);
       setPendingScroll(null);
-      setCachedDomConversationId(conversationId);
-      return;
+      setCachedOutlineConversationId(conversationId);
     }
 
-    if (shouldUseImmediateDomFallback) {
+    if (!cached && shouldUseImmediateDomFallback) {
       const turns = collectDomOutlineTurns();
       setSource({ conversationId, mode: "dom", tree: treeWithDomTurns(conversationId, turns, null) });
       setActiveId(null);
       setPendingScroll(null);
-      setCachedDomConversationId(conversationId);
+      setCachedOutlineConversationId(conversationId);
       return;
     }
 
     const controller = new AbortController();
-    setSource({ conversationId, mode: "api", tree: null });
-    setActiveId(null);
-    setPendingScroll(null);
-    setCachedDomConversationId(null);
+    if (!cached) {
+      setSource({ conversationId, mode: "api", tree: null });
+      setActiveId(null);
+      setPendingScroll(null);
+      setCachedOutlineConversationId(null);
+    }
 
-    fetchConversationOutlineTreeWithRetry(conversationId, controller.signal, conversationLocation.changedAt)
+    const treeRequest = cached
+      ? waitForFreshConversationOutlineTree(conversationId, controller.signal, conversationLocation.changedAt)
+      : fetchConversationOutlineTreeWithFallback(conversationId, controller.signal, conversationLocation.changedAt);
+
+    treeRequest
       .then((tree) => {
-        if (!controller.signal.aborted) {
-          const turns = collectDomOutlineTurns();
-          const mergedTree =
-            tree && treeHasOutlineItems(tree) && turns.length > 0
-              ? mergeDomOutlineTurns(tree, turns, { preserveExistingStructure: true })
-              : tree;
+        if (controller.signal.aborted) {
+          return;
+        }
 
+        if (tree) {
           setSource({
             conversationId,
-            mode: treeHasOutlineItems(mergedTree) ? "api" : "dom",
-            tree: mergedTree
+            mode: treeHasOutlineItems(tree) ? "api" : "dom",
+            tree
           });
+          // The response bridge may resolve after ChatGPT's DOM mutation has already fired.
+          setFreshApiTreeRevision((revision) => revision + 1);
+          setCachedOutlineConversationId(null);
+          return;
+        }
+
+        if (!cached) {
+          const turns = collectDomOutlineTurns();
+          setSource({ conversationId, mode: "dom", tree: treeWithDomTurns(conversationId, turns, null) });
         }
       })
       .catch(() => {
-        if (!controller.signal.aborted) {
-          const turns = collectDomOutlineTurns();
-          setSource({ conversationId, mode: "dom", tree: treeWithDomTurns(conversationId, turns, null) });
-          setCachedDomConversationId(null);
+        if (controller.signal.aborted || cached) {
+          return;
         }
+
+        const turns = collectDomOutlineTurns();
+        setSource({ conversationId, mode: "dom", tree: treeWithDomTurns(conversationId, turns, null) });
+        setCachedOutlineConversationId(null);
       });
 
     return () => controller.abort();
@@ -161,20 +197,10 @@ export function ConversationOutline(): ReactElement | null {
       return;
     }
 
-    if (
-      source.mode === "dom" &&
-      source.conversationId === cachedDomConversationId &&
-      source.tree &&
-      treeHasOutlineItems(source.tree)
-    ) {
-      rememberDomOutlineTree(source.conversationId, source.tree);
-      return;
+    if (source.tree && source.tree.nodes.size > 0) {
+      rememberOutlineTree(source.conversationId, source.mode, source.tree);
     }
-
-    if (source.mode === "api" && treeHasOutlineItems(source.tree)) {
-      forgetDomOutlineTree(source.conversationId);
-    }
-  }, [cachedDomConversationId, source]);
+  }, [source]);
 
   useEffect(() => {
     if (!conversationId) {
@@ -186,7 +212,7 @@ export function ConversationOutline(): ReactElement | null {
     }
 
     if (source.mode === "dom") {
-      if (!hasConversationStateActivity && !shouldUseImmediateDomFallback && !domFallbackReady && !isUsingCachedDomTree) {
+      if (!hasConversationStateActivity && !shouldUseImmediateDomFallback && !domFallbackReady && !isUsingCachedOutlineTree) {
         return;
       }
 
@@ -202,11 +228,12 @@ export function ConversationOutline(): ReactElement | null {
           }
 
           const tree = current.tree ?? createEmptyOutlineTree(conversationId);
-          if (isUsingCachedDomTree && !turnsOverlapTree(turns, tree)) {
+          if (isUsingCachedOutlineTree && !turnsOverlapTree(turns, tree)) {
             return current;
           }
 
-          const nextTree = mergeDomOutlineTurns(tree, turns);
+          const correctedTree = correctActiveBranchFromDom(tree, turns, "dom");
+          const nextTree = mergeDomOutlineTurns(correctedTree, turns);
           if (nextTree === tree) {
             return current;
           }
@@ -240,7 +267,12 @@ export function ConversationOutline(): ReactElement | null {
           return current;
         }
 
-        const nextTree = mergeDomOutlineTurns(current.tree, turns, { preserveExistingStructure: true });
+        if (!turnsOverlapTree(turns, current.tree)) {
+          return current;
+        }
+
+        const correctedTree = correctActiveBranchFromDom(current.tree, turns, "api");
+        const nextTree = mergeDomOutlineTurns(correctedTree, turns, { preserveExistingStructure: true });
         if (nextTree === current.tree) {
           return current;
         }
@@ -262,10 +294,11 @@ export function ConversationOutline(): ReactElement | null {
       observer.disconnect();
     };
   }, [
+    freshApiTreeRevision,
     conversationId,
     domFallbackReady,
     hasConversationStateActivity,
-    isUsingCachedDomTree,
+    isUsingCachedOutlineTree,
     shouldUseImmediateDomFallback,
     source.conversationId,
     source.mode
