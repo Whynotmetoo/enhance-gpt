@@ -1,4 +1,7 @@
-import { fetchConversationInPageContext } from "../../lib/chatGptApiBridge";
+import {
+  fetchConversationByIdInPageContext,
+  fetchConversationInPageContext
+} from "../../lib/chatGptApiBridge";
 import type { OutlineItem, OutlineNodeRole, OutlineTree, OutlineTreeNode } from "./types";
 import { isRecord, normalizeLabel, stringValue } from "./utils";
 
@@ -292,7 +295,7 @@ function treeFromApiConversation(conversationId: string, conversation: ApiConver
   };
 }
 
-async function fetchConversationOutlineTree(
+async function waitForConversationOutlineTree(
   conversationId: string,
   signal: AbortSignal,
   minCapturedAt: number
@@ -305,44 +308,61 @@ async function fetchConversationOutlineTree(
   return treeFromApiConversation(conversationId, conversation);
 }
 
-function waitForRetry(ms: number, signal: AbortSignal): Promise<void> {
+function waitForNextCaptureAttempt(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(resolve, ms);
+    const finish = () => {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    };
+    const abort = () => {
+      window.clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
+      reject(new Error("Conversation request aborted"));
+    };
+    const timer = window.setTimeout(finish, ms);
 
-    signal.addEventListener(
-      "abort",
-      () => {
-        window.clearTimeout(timer);
-        reject(new Error("Conversation request aborted"));
-      },
-      { once: true }
-    );
+    if (signal.aborted) {
+      abort();
+      return;
+    }
+
+    signal.addEventListener("abort", abort, { once: true });
   });
 }
 
-export async function fetchConversationOutlineTreeWithRetry(
+export async function waitForFreshConversationOutlineTree(
   conversationId: string,
   signal: AbortSignal,
   minCapturedAt: number
 ): Promise<OutlineTree | null> {
-  const retryDelays = [0, 350, 900];
-  let lastError: unknown = null;
-
-  for (const delay of retryDelays) {
-    if (delay > 0) {
-      await waitForRetry(delay, signal);
-    }
-
+  while (!signal.aborted) {
     try {
-      return await fetchConversationOutlineTree(conversationId, signal, minCapturedAt);
+      return await waitForConversationOutlineTree(conversationId, signal, minCapturedAt);
     } catch (error) {
       if (signal.aborted) {
         throw error;
       }
 
-      lastError = error;
+      await waitForNextCaptureAttempt(250, signal);
     }
   }
 
-  throw lastError ?? new Error("Conversation request failed");
+  throw new Error("Conversation request aborted");
+}
+
+export async function fetchConversationOutlineTreeWithFallback(
+  conversationId: string,
+  signal: AbortSignal,
+  minCapturedAt: number
+): Promise<OutlineTree | null> {
+  try {
+    return await waitForConversationOutlineTree(conversationId, signal, minCapturedAt);
+  } catch (capturedResponseError) {
+    if (signal.aborted) {
+      throw capturedResponseError;
+    }
+  }
+
+  const conversation = (await fetchConversationByIdInPageContext(conversationId, signal)) as ApiConversation;
+  return treeFromApiConversation(conversationId, conversation);
 }
