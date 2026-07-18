@@ -87,6 +87,7 @@ export function ConversationOutline(): ReactElement | null {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingScroll, setPendingScroll] = useState<PendingScroll | null>(null);
   const [cachedOutlineConversationId, setCachedOutlineConversationId] = useState<string | null>(null);
+  const [freshApiTreeRevision, setFreshApiTreeRevision] = useState(0);
   const navigationRequestId = useRef(0);
   const isRightSidePanelOpen = useRightSidePanel();
   const hasConversationStateActivity = useConversationStateActivity(conversationId, conversationLocation.changedAt);
@@ -163,6 +164,8 @@ export function ConversationOutline(): ReactElement | null {
             mode: treeHasOutlineItems(tree) ? "api" : "dom",
             tree
           });
+          // The response bridge may resolve after ChatGPT's DOM mutation has already fired.
+          setFreshApiTreeRevision((revision) => revision + 1);
           setCachedOutlineConversationId(null);
           return;
         }
@@ -291,6 +294,7 @@ export function ConversationOutline(): ReactElement | null {
       observer.disconnect();
     };
   }, [
+    freshApiTreeRevision,
     conversationId,
     domFallbackReady,
     hasConversationStateActivity,
