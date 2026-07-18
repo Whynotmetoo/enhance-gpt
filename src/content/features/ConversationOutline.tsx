@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { t } from "../../shared/i18n";
 import { debounce } from "../lib/dom";
 import { fetchConversationOutlineTreeWithRetry } from "./conversationOutline/apiOutline";
+import { correctActiveBranchFromDom } from "./conversationOutline/activeBranch";
 import { pendingScrollDelayMs } from "./conversationOutline/constants";
 import {
   bindOutlineItems,
@@ -58,7 +59,9 @@ function treeWithDomTurns(conversationId: string, turns: DomOutlineTurn[], tree:
     return tree;
   }
 
-  return mergeDomOutlineTurns(tree ?? createEmptyOutlineTree(conversationId), turns);
+  const currentTree = tree ?? createEmptyOutlineTree(conversationId);
+  const correctedTree = correctActiveBranchFromDom(currentTree, turns, "dom");
+  return mergeDomOutlineTurns(correctedTree, turns);
 }
 
 export function ConversationOutline(): ReactElement | null {
@@ -129,10 +132,11 @@ export function ConversationOutline(): ReactElement | null {
       .then((tree) => {
         if (!controller.signal.aborted) {
           const turns = collectDomOutlineTurns();
+          const correctedTree = tree && turns.length > 0 ? correctActiveBranchFromDom(tree, turns, "api") : tree;
           const mergedTree =
-            tree && treeHasOutlineItems(tree) && turns.length > 0
-              ? mergeDomOutlineTurns(tree, turns, { preserveExistingStructure: true })
-              : tree;
+            correctedTree && treeHasOutlineItems(correctedTree) && turns.length > 0
+              ? mergeDomOutlineTurns(correctedTree, turns, { preserveExistingStructure: true })
+              : correctedTree;
 
           setSource({
             conversationId,
@@ -206,7 +210,8 @@ export function ConversationOutline(): ReactElement | null {
             return current;
           }
 
-          const nextTree = mergeDomOutlineTurns(tree, turns);
+          const correctedTree = correctActiveBranchFromDom(tree, turns, "dom");
+          const nextTree = mergeDomOutlineTurns(correctedTree, turns);
           if (nextTree === tree) {
             return current;
           }
@@ -240,7 +245,8 @@ export function ConversationOutline(): ReactElement | null {
           return current;
         }
 
-        const nextTree = mergeDomOutlineTurns(current.tree, turns, { preserveExistingStructure: true });
+        const correctedTree = correctActiveBranchFromDom(current.tree, turns, "api");
+        const nextTree = mergeDomOutlineTurns(correctedTree, turns, { preserveExistingStructure: true });
         if (nextTree === current.tree) {
           return current;
         }
