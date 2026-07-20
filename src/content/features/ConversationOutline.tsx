@@ -422,9 +422,12 @@ export function ConversationOutline(): ReactElement | null {
     navigationRequestId.current = requestId;
     setPendingScroll(null);
 
-    const outlineItem = items[item.originalIndex];
-    const target = outlineItem ? await resolveOutlineItemTarget(outlineItem) : null;
+    const target = await resolveOutlineItemTarget(items, item.originalIndex);
     if (requestId !== navigationRequestId.current) {
+      return;
+    }
+
+    if (target?.handledByNativeToc) {
       return;
     }
 

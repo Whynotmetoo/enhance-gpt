@@ -58,6 +58,7 @@ import type {
   ConversationItem,
   HeaderControls
 } from "./conversationBulk/types";
+import { nativePromptButtons } from "./conversationOutline/nativeToc";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : t("bulk_toast_failed_generic");
@@ -74,19 +75,10 @@ const nativeSettingsSwitchClassName =
 const nativeSettingsSwitchThumbClassName =
   "radix-state-checked:translate-x-[calc(var(--to-end-unit,1)*100%*(7/4-1))] flex aspect-square h-full items-center justify-center rounded-full bg-white transition-transform duration-100";
 
-function isEnhanceGptElement(element: Element): boolean {
-  return Boolean(element.closest("#enhance-gpt-root"));
-}
-
 function nativePromptNavigationContainer(): HTMLElement | null {
-  const promptButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("button[aria-label^='Prompt ']")).filter(
-    (button) => {
-      const label = button.getAttribute("aria-label") ?? "";
-      return /^Prompt \d+$/.test(label) && !isEnhanceGptElement(button);
-    }
-  );
+  const promptButtons = nativePromptButtons();
 
-  if (promptButtons.length < 5) {
+  if (promptButtons.length === 0) {
     return null;
   }
 
@@ -106,7 +98,7 @@ function nativePromptNavigationContainer(): HTMLElement | null {
   return (
     Array.from(ancestorCounts.entries())
       .filter(([element, count]) => {
-        if (count !== promptButtons.length || isEnhanceGptElement(element)) {
+        if (count !== promptButtons.length || element.closest("#enhance-gpt-root")) {
           return false;
         }
 
