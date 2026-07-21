@@ -96,7 +96,7 @@ test("API mode prefers the mounted assistant that belongs to the API tree", () =
   );
 });
 
-test("API mode follows a unique descendant chain from the latest mounted user", () => {
+test("API mode follows a unique descendant chain from the latest API-backed user anchor", () => {
   const original = tree(
     [
       node("user-1", { children: ["answer-1"], role: "user" }),
@@ -110,6 +110,62 @@ test("API mode follows a unique descendant chain from the latest mounted user", 
   assert.equal(
     resolveActiveBranchNodeId(original, [turn("user-2", { parentId: "answer-1", role: "user" })], "api"),
     "answer-2"
+  );
+});
+
+test("API mode prefers a later user anchor over an earlier mounted assistant", () => {
+  const original = tree(
+    [
+      node("user-1", { children: ["answer-1"], role: "user" }),
+      node("answer-1", { children: ["user-2"], parentId: "user-1" }),
+      node("user-2", { children: ["answer-2"], parentId: "answer-1", role: "user" }),
+      node("answer-2", { children: ["user-3"], parentId: "user-2" }),
+      node("user-3", { children: ["answer-3"], parentId: "answer-2", role: "user" }),
+      node("answer-3", { parentId: "user-3" })
+    ],
+    "answer-1"
+  );
+
+  assert.equal(
+    resolveActiveBranchNodeId(
+      original,
+      [
+        turn("user-1", { role: "user" }),
+        turn("answer-1", { hasMountedMessage: true, parentId: "user-1" }),
+        turn("user-2", { parentId: "answer-1", role: "user" }),
+        turn("answer-2", { parentId: "user-2" }),
+        turn("user-3", { parentId: "answer-2", role: "user" }),
+        turn("answer-3", { parentId: "user-3" })
+      ],
+      "api"
+    ),
+    "answer-3"
+  );
+});
+
+test("API mode keeps the active branch when a later user anchor has multiple descendants", () => {
+  const original = tree(
+    [
+      node("user-1", { children: ["answer-1"], role: "user" }),
+      node("answer-1", { children: ["user-2"], parentId: "user-1" }),
+      node("user-2", { children: ["answer-2a", "answer-2b"], parentId: "answer-1", role: "user" }),
+      node("answer-2a", { parentId: "user-2" }),
+      node("answer-2b", { parentId: "user-2" })
+    ],
+    "answer-2b"
+  );
+
+  assert.equal(
+    resolveActiveBranchNodeId(
+      original,
+      [
+        turn("user-1", { role: "user" }),
+        turn("answer-1", { hasMountedMessage: true, parentId: "user-1" }),
+        turn("user-2", { parentId: "answer-1", role: "user" })
+      ],
+      "api"
+    ),
+    "answer-2b"
   );
 });
 

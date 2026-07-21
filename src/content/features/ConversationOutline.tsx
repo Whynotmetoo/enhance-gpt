@@ -12,7 +12,7 @@ import {
   bindOutlineItems,
   collectDomOutlineTurns,
   connectedElement,
-  conversationMutationRoot
+  observeConversationMutations
 } from "./conversationOutline/domOutline";
 import { cachedOutlineTree, rememberOutlineTree } from "./conversationOutline/outlineCache";
 import {
@@ -245,14 +245,11 @@ export function ConversationOutline(): ReactElement | null {
         });
       };
       const scheduleUpdate = debounce(update, domMergeDebounceMs);
-      const observer = new MutationObserver(scheduleUpdate);
-
-      update();
-      observer.observe(conversationMutationRoot(), { attributes: true, characterData: true, childList: true, subtree: true });
+      const stopObserving = observeConversationMutations(scheduleUpdate, update);
 
       return () => {
         scheduleUpdate.cancel();
-        observer.disconnect();
+        stopObserving();
       };
     }
 
@@ -284,14 +281,11 @@ export function ConversationOutline(): ReactElement | null {
       });
     };
     const scheduleUpdate = debounce(update, apiDomMergeDebounceMs);
-    const observer = new MutationObserver(scheduleUpdate);
-
-    update();
-    observer.observe(conversationMutationRoot(), { attributes: true, characterData: true, childList: true, subtree: true });
+    const stopObserving = observeConversationMutations(scheduleUpdate, update);
 
     return () => {
       scheduleUpdate.cancel();
-      observer.disconnect();
+      stopObserving();
     };
   }, [
     freshApiTreeRevision,
@@ -422,9 +416,12 @@ export function ConversationOutline(): ReactElement | null {
     navigationRequestId.current = requestId;
     setPendingScroll(null);
 
-    const outlineItem = items[item.originalIndex];
-    const target = outlineItem ? await resolveOutlineItemTarget(outlineItem) : null;
+    const target = await resolveOutlineItemTarget(items, item.originalIndex);
     if (requestId !== navigationRequestId.current) {
+      return;
+    }
+
+    if (target?.handledByNativeToc) {
       return;
     }
 

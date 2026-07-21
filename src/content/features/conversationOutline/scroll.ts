@@ -8,6 +8,7 @@ import {
   pendingScrollStepRatio
 } from "./constants";
 import { connectedElement, exactOutlineElement } from "./domOutline";
+import { nativePromptButtonForOutlineItem } from "./nativeToc";
 import type { OutlineItem, PendingScroll } from "./types";
 
 type MountedOutlineAnchor = {
@@ -15,10 +16,15 @@ type MountedOutlineAnchor = {
   index: number;
 };
 
-type ResolvedOutlineTarget = {
-  element: HTMLElement;
-  exact: boolean;
-};
+type ResolvedOutlineTarget =
+  | {
+      handledByNativeToc: true;
+    }
+  | {
+      element: HTMLElement;
+      exact: boolean;
+      handledByNativeToc?: false;
+    };
 
 const outlineTargetRemountTimeoutMs = 1_500;
 const outlineTargetRemountPollMs = 60;
@@ -183,7 +189,43 @@ function waitForRemountFrame(): Promise<void> {
   });
 }
 
-export async function resolveOutlineItemTarget(item: OutlineItem): Promise<ResolvedOutlineTarget | null> {
+async function waitForExactOutlineTarget(item: OutlineItem): Promise<HTMLElement | null> {
+  const deadline = window.performance.now() + outlineTargetRemountTimeoutMs;
+  while (window.performance.now() < deadline) {
+    await waitForRemountFrame();
+
+    const remounted = exactOutlineElement(item);
+    if (remounted) {
+      return remounted;
+    }
+  }
+
+  return null;
+}
+
+export async function resolveOutlineItemTarget(
+  items: OutlineItem[],
+  index: number
+): Promise<ResolvedOutlineTarget | null> {
+  const item = items[index];
+  if (!item) {
+    return null;
+  }
+
+  const nativePromptButton = nativePromptButtonForOutlineItem(items, index);
+  if (nativePromptButton && !nativePromptButton.disabled) {
+    nativePromptButton.click();
+
+    if (item.kind === "user") {
+      return { handledByNativeToc: true };
+    }
+
+    const remounted = await waitForExactOutlineTarget(item);
+    if (remounted) {
+      return { element: remounted, exact: true };
+    }
+  }
+
   const exactElement = exactOutlineElement(item);
   if (exactElement) {
     return { element: exactElement, exact: true };
@@ -196,14 +238,9 @@ export async function resolveOutlineItemTarget(item: OutlineItem): Promise<Resol
 
   scrollElementIntoView(targetContainer, "auto");
 
-  const deadline = window.performance.now() + outlineTargetRemountTimeoutMs;
-  while (window.performance.now() < deadline) {
-    await waitForRemountFrame();
-
-    const remounted = exactOutlineElement(item);
-    if (remounted) {
-      return { element: remounted, exact: true };
-    }
+  const remounted = await waitForExactOutlineTarget(item);
+  if (remounted) {
+    return { element: remounted, exact: true };
   }
 
   const fallbackContainer = connectedElement(targetContainer);

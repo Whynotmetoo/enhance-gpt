@@ -38,6 +38,40 @@ export function conversationMutationRoot(): HTMLElement {
   return document.querySelector<HTMLElement>("#thread") ?? document.querySelector<HTMLElement>("main") ?? document.body;
 }
 
+export function observeConversationMutations(
+  scheduleUpdate: () => void,
+  update: () => void
+): () => void {
+  const mutationOptions: MutationObserverInit = {
+    attributes: true,
+    characterData: true,
+    childList: true,
+    subtree: true
+  };
+  let mutationRoot = conversationMutationRoot();
+  const conversationObserver = new MutationObserver(scheduleUpdate);
+  const rootObserver = new MutationObserver(() => {
+    const nextRoot = conversationMutationRoot();
+    if (nextRoot === mutationRoot) {
+      return;
+    }
+
+    conversationObserver.disconnect();
+    mutationRoot = nextRoot;
+    conversationObserver.observe(mutationRoot, mutationOptions);
+    update();
+  });
+
+  update();
+  conversationObserver.observe(mutationRoot, mutationOptions);
+  rootObserver.observe(document.body, { childList: true, subtree: true });
+
+  return () => {
+    conversationObserver.disconnect();
+    rootObserver.disconnect();
+  };
+}
+
 export function conversationIdFromUrl(url: string): string | null {
   try {
     const parsedUrl = new URL(url, window.location.origin);
