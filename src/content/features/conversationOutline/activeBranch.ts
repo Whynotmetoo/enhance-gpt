@@ -53,19 +53,33 @@ function activeDomTurnId(pathTurns: DomOutlineTurn[]): string {
   ).id;
 }
 
-function activeApiDomTurnId(tree: OutlineTree, pathTurns: DomOutlineTurn[]): string {
-  const mountedAssistant = [...pathTurns]
-    .reverse()
-    .find((turn) => turn.role === "assistant" && turn.hasMountedMessage && tree.nodes.has(turn.id));
-  if (mountedAssistant) {
-    return mountedAssistant.id;
+function lastTurnIndex(pathTurns: DomOutlineTurn[], matches: (turn: DomOutlineTurn) => boolean): number {
+  for (let index = pathTurns.length - 1; index >= 0; index -= 1) {
+    if (matches(pathTurns[index])) {
+      return index;
+    }
   }
 
-  const userAnchor = [...pathTurns]
-    .reverse()
-    .find((turn) => turn.role === "user" && tree.nodes.has(turn.id));
-  if (userAnchor) {
+  return -1;
+}
+
+function activeApiDomTurnId(tree: OutlineTree, pathTurns: DomOutlineTurn[]): string {
+  const mountedAssistantIndex = lastTurnIndex(
+    pathTurns,
+    (turn) => turn.role === "assistant" && turn.hasMountedMessage === true && tree.nodes.has(turn.id)
+  );
+  const userAnchorIndex = lastTurnIndex(
+    pathTurns,
+    (turn) => turn.role === "user" && tree.nodes.has(turn.id)
+  );
+
+  if (userAnchorIndex > mountedAssistantIndex) {
+    const userAnchor = pathTurns[userAnchorIndex];
     return uniqueDescendantLeafId(tree.nodes, userAnchor.id) ?? (tree.activeNodeId ?? userAnchor.id);
+  }
+
+  if (mountedAssistantIndex >= 0) {
+    return pathTurns[mountedAssistantIndex].id;
   }
 
   return activeDomTurnId(pathTurns);
