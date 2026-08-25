@@ -261,7 +261,7 @@ function fallbackActiveNodeId(nodes: ReadonlyMap<string, OutlineTreeNode>, roots
   return leaves[leaves.length - 1]?.id ?? roots[roots.length - 1] ?? null;
 }
 
-function treeFromApiConversation(conversationId: string, conversation: ApiConversation): OutlineTree | null {
+export function treeFromApiConversation(conversationId: string, conversation: ApiConversation): OutlineTree | null {
   const mapping = apiMapping(conversation);
   if (mapping.size === 0) {
     return null;
@@ -308,6 +308,14 @@ async function waitForConversationOutlineTree(
   return treeFromApiConversation(conversationId, conversation);
 }
 
+async function fetchFullConversationOutlineTree(
+  conversationId: string,
+  signal: AbortSignal
+): Promise<OutlineTree | null> {
+  const conversation = (await fetchConversationByIdInPageContext(conversationId, signal)) as ApiConversation;
+  return treeFromApiConversation(conversationId, conversation);
+}
+
 function waitForNextCaptureAttempt(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const finish = () => {
@@ -337,7 +345,20 @@ export async function waitForFreshConversationOutlineTree(
 ): Promise<OutlineTree | null> {
   while (!signal.aborted) {
     try {
-      return await waitForConversationOutlineTree(conversationId, signal, minCapturedAt);
+      const capturedTree = await waitForConversationOutlineTree(conversationId, signal, minCapturedAt);
+      if (capturedTree) {
+        return capturedTree;
+      }
+
+      try {
+        return await fetchFullConversationOutlineTree(conversationId, signal);
+      } catch (directRequestError) {
+        if (signal.aborted) {
+          throw directRequestError;
+        }
+
+        return null;
+      }
     } catch (error) {
       if (signal.aborted) {
         throw error;
@@ -356,13 +377,23 @@ export async function fetchConversationOutlineTreeWithFallback(
   minCapturedAt: number
 ): Promise<OutlineTree | null> {
   try {
+    const fullTree = await fetchFullConversationOutlineTree(conversationId, signal);
+    if (fullTree) {
+      return fullTree;
+    }
+  } catch (directRequestError) {
+    if (signal.aborted) {
+      throw directRequestError;
+    }
+  }
+
+  try {
     return await waitForConversationOutlineTree(conversationId, signal, minCapturedAt);
   } catch (capturedResponseError) {
     if (signal.aborted) {
       throw capturedResponseError;
     }
-  }
 
-  const conversation = (await fetchConversationByIdInPageContext(conversationId, signal)) as ApiConversation;
-  return treeFromApiConversation(conversationId, conversation);
+    return null;
+  }
 }

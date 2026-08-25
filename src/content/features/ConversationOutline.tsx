@@ -148,7 +148,7 @@ export function ConversationOutline(): ReactElement | null {
       setCachedOutlineConversationId(null);
     }
 
-    const treeRequest = cached
+    const treeRequest = cached?.mode === "api"
       ? waitForFreshConversationOutlineTree(conversationId, controller.signal, conversationLocation.changedAt)
       : fetchConversationOutlineTreeWithFallback(conversationId, controller.signal, conversationLocation.changedAt);
 
