@@ -171,7 +171,7 @@
 
     try {
       const parsedUrl = new URL(url, window.location.origin);
-      const match = parsedUrl.pathname.match(/^\/backend-api\/conversation\/([^/]+)$/);
+      const match = parsedUrl.pathname.match(/^\/backend-api\/conversations?\/([^/]+)$/);
       return match ? decodeURIComponent(match[1]) : null;
     } catch {
       return null;
