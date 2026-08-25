@@ -10,6 +10,12 @@ type ChromeGlobal = typeof globalThis & {
   };
 };
 
+let isChromeI18nAvailable = true;
+
+function isExtensionContextInvalidatedError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("Extension context invalidated");
+}
+
 /**
  * Resolves the localized message for the given key using chrome.i18n.
  * Falls back to the static English dictionary if chrome.i18n is unavailable.
@@ -21,14 +27,18 @@ export function t(key: MessageKey, substitutions?: string | string[]): string {
   const scope = globalThis as ChromeGlobal;
 
   try {
-    if (scope.chrome?.i18n?.getMessage) {
+    if (isChromeI18nAvailable && scope.chrome?.i18n?.getMessage) {
       const message = scope.chrome.i18n.getMessage(key, substitutions);
       if (message) {
         return message;
       }
     }
   } catch (error) {
-    console.warn("chrome.i18n.getMessage failed:", error);
+    if (isExtensionContextInvalidatedError(error)) {
+      isChromeI18nAvailable = false;
+    } else {
+      console.warn("chrome.i18n.getMessage failed:", error);
+    }
   }
 
   // Fallback to static English dictionary
