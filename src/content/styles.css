@@ -362,8 +362,22 @@ body.light,
   display: flex !important;
   gap: 2px;
   min-width: 0;
-  padding-right: 6px;
+  padding-inline-end: 0;
   width: 100%;
+}
+
+/* Match the native gap-1 spacing between the extension and native actions. */
+[data-sidebar-project-container-id="chats"]
+  [class~="group/nav-section-title"]:has(.ecg-recents-header-row) {
+  column-gap: var(--spacing, 4px);
+}
+
+/* Reserve the native actions' width while their hover/focus visibility stays native. */
+[data-sidebar-project-container-id="chats"]
+  [class~="group/nav-section-title"]:has(.ecg-recents-header-row)
+  > div
+  > .w-0 {
+  width: auto !important;
 }
 
 .ecg-recents-trigger {
