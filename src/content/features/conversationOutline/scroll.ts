@@ -356,8 +356,7 @@ export function nextPendingScroll(items: OutlineItem[], pendingScroll: PendingSc
     container?.querySelector('[aria-busy="true"]'));
   const attempts = pendingScrollAttempts(pendingScroll, { position, height, messages, loading });
   const behavior: ScrollBehavior = exactOutlineElement(items[index]) ? "smooth" : "auto";
-  const reachedExactTarget = loading && !exactOutlineElement(items[index])
-    ? false : scrollToOutlineItem(items, index, behavior);
+  const reachedExactTarget = scrollToOutlineItem(items, index, behavior);
   if (reachedExactTarget || attempts >= maxPendingScrollAttempts) {
     return null;
   }

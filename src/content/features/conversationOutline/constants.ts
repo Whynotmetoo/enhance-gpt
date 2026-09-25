@@ -4,7 +4,7 @@ export const outlineIdAttribute = "data-ecg-outline-id";
 export const maxLabelLength = 88;
 export const turnSelector = "[data-turn='user'], [data-turn='assistant']";
 export const messageSelector = "[data-message-author-role='user'], [data-message-author-role='assistant']";
-export const answerHeadingSelector = ".markdown :is(h1, h2, h3, h4, h5, h6)";
+export const answerHeadingSelector = '.markdown :is(h1, h2, h3, h4, h5, h6), [data-markdown-text-style="assistant-message"] :is(h1, h2, h3, h4, h5, h6)';
 export const conversationPathPattern = /^\/c\/([^/?#]+)/;
 export const locationChangeSource = `${EXTENSION_NAMESPACE}:location-changed`;
 export const maxPendingScrollAttempts = 8;

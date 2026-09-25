@@ -165,9 +165,20 @@ function messageElementFromTurn(turn: HTMLElement, role: "user" | "assistant" | 
   return turn.querySelector<HTMLElement>("[data-message-id]");
 }
 
-function messageIdFromElement(element: HTMLElement | null): string | null {
-  return element?.getAttribute("data-message-id") ??
-    element?.getAttribute("data-chatgpt-search-message-ids")?.trim().split(/\s+/)[0] ?? null;
+export function messageIdFromElement(element: HTMLElement | null): string | null {
+  if (!element) return null;
+  const explicit = element.getAttribute("data-chatgpt-selection-message-id") ?? element.getAttribute("data-message-id");
+  if (explicit) return explicit;
+
+  // Search units can aggregate tool/intermediate ids. Only trust rendered content.
+  const renderedIds = new Set(Array.from(element.querySelectorAll<HTMLElement>(
+    '[data-markdown-text-style="assistant-message"], [data-user-message-bubble]'
+  )).map((body) => body.closest<HTMLElement>("[data-chatgpt-selection-message-id]")
+    ?.getAttribute("data-chatgpt-selection-message-id")).filter((id): id is string => Boolean(id)));
+  if (renderedIds.size > 0) return renderedIds.size === 1 ? [...renderedIds][0] : null;
+
+  const ids = new Set(element.getAttribute("data-chatgpt-search-message-ids")?.trim().split(/\s+/).filter(Boolean));
+  return ids.size === 1 ? [...ids][0] : null;
 }
 
 function messageIdFromTurn(turn: HTMLElement, role: "user" | "assistant" | null): string | null {
@@ -175,11 +186,11 @@ function messageIdFromTurn(turn: HTMLElement, role: "user" | "assistant" | null)
 }
 
 function messageIdForHeading(element: HTMLElement, fallback: string | null): string | null {
-  return element.closest<HTMLElement>("[data-message-id]")?.getAttribute("data-message-id") ?? fallback;
+  return messageIdFromElement(element.closest<HTMLElement>("[data-chatgpt-selection-message-id], [data-message-id]")) ?? fallback;
 }
 
 function headingIndexInMessage(element: HTMLElement, fallback: number): number {
-  const message = element.closest<HTMLElement>("[data-message-id]");
+  const message = element.closest<HTMLElement>("[data-chatgpt-selection-message-id], [data-message-id]");
   if (!message) {
     return fallback;
   }
@@ -200,9 +211,7 @@ function userLabel(turn: HTMLElement, index: number): string {
 }
 
 function answerHeadings(root: HTMLElement): HTMLElement[] {
-  const selector = root.hasAttribute("data-chatgpt-search-message-ids")
-    ? "h1, h2, h3, h4, h5, h6"
-    : answerHeadingSelector;
+  const selector = answerHeadingSelector;
   return Array.from(root.querySelectorAll<HTMLElement>(selector))
     .filter((heading) => !heading.matches(".sr-only, [data-conversation-role]"))
     .filter(isVisible)
@@ -374,11 +383,14 @@ export function collectDomOutlineItems(): OutlineItem[] {
 
 function findMessageElement(messageId: string): HTMLElement | null {
   const escaped = cssEscape(messageId);
-  const message = document.querySelector<HTMLElement>(`[data-chatgpt-search-message-ids~="${escaped}"]`) ??
+  const message = document.querySelector<HTMLElement>(`[data-chatgpt-selection-message-id="${escaped}"]`) ??
     document.querySelector<HTMLElement>(`[data-message-id="${escaped}"]`);
   if (message) {
     return message;
   }
+
+  const unit = document.querySelector<HTMLElement>(`[data-chatgpt-search-message-ids~="${escaped}"]`);
+  if (unit && messageIdFromElement(unit) === messageId) return unit;
 
   return document.querySelector<HTMLElement>(`[data-turn-id="${escaped}"]`) ??
     document.querySelector<HTMLElement>(`[data-turn-key="${escaped}"]`);
