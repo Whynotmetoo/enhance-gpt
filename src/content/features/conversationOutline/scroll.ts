@@ -9,6 +9,7 @@ import {
 } from "./constants";
 import { connectedElement, exactOutlineElement } from "./domOutline";
 import { nativePromptButtonForOutlineItem } from "./nativeToc";
+import { cssEscape } from "./utils";
 import type { OutlineItem, PendingScroll } from "./types";
 
 type MountedOutlineAnchor = {
@@ -97,10 +98,12 @@ function scrollTargetTop(element: HTMLElement, container: HTMLElement): number {
   return clampScrollTop(container, top);
 }
 
-function clampScrollTop(container: HTMLElement, top: number): number {
+export function clampScrollTop(container: HTMLElement, top: number): number {
   const maxTop = Math.max(container.scrollHeight - container.clientHeight, 0);
 
-  return Math.min(Math.max(top, 0), maxTop);
+  if (maxTop === 0) return 0;
+  const reversed = window.getComputedStyle(container).flexDirection === "column-reverse";
+  return reversed ? Math.min(Math.max(top, -maxTop), 0) : Math.min(Math.max(top, 0), maxTop);
 }
 
 function isElementScrollAligned(element: HTMLElement, container: HTMLElement): boolean {
@@ -159,6 +162,17 @@ function scrollElementIntoView(element: HTMLElement, behavior: ScrollBehavior): 
   }
 
   return isAligned;
+}
+
+export function targetTurnShell(items: OutlineItem[], index: number): HTMLElement | null {
+  for (let cursor = index; cursor >= 0; cursor -= 1) {
+    const item = items[cursor];
+    if (item.kind !== "user") continue;
+    return item.messageId
+      ? document.querySelector<HTMLElement>(`[data-turn-key="${cssEscape(item.messageId)}"]`)
+      : null;
+  }
+  return null;
 }
 
 function targetContainerElement(item: OutlineItem): HTMLElement | null {
@@ -231,7 +245,7 @@ export async function resolveOutlineItemTarget(
     return { element: exactElement, exact: true };
   }
 
-  const targetContainer = targetContainerElement(item);
+  const targetContainer = targetTurnShell(items, index) ?? targetContainerElement(item);
   if (!targetContainer) {
     return null;
   }
@@ -257,7 +271,7 @@ function pendingScrollStep(container: HTMLElement, anchorIndex: number, targetIn
     container.clientHeight * pendingScrollStepRatio,
     targetLevel > 1 ? pendingHeadingScrollMinStep : pendingScrollMinStep
   );
-  const indexMultiplier = targetLevel > 1 ? 1 + Math.min(indexDistance, 6) * 0.25 : 1;
+  const indexMultiplier = Math.min(8, 1 + Math.sqrt(indexDistance));
 
   return baseStep * indexMultiplier;
 }
@@ -287,25 +301,19 @@ export function scrollToOutlineItem(items: OutlineItem[], index: number, behavio
     return scrollElementIntoView(exactElement, behavior);
   }
 
+  const shell = targetTurnShell(items, index);
+  if (shell) {
+    scrollElementIntoView(shell, "auto");
+    return false;
+  }
+
   const targetContainer = item ? targetContainerElement(item) : null;
   if (targetContainer) {
     scrollElementIntoView(targetContainer, behavior);
     return false;
   }
 
-  const sectionAnchor = parentSectionAnchor(items, index);
-  if (sectionAnchor) {
-    const container = scrollContainerFor(sectionAnchor.element);
-    if (!isElementScrollAligned(sectionAnchor.element, container)) {
-      scrollElementIntoView(sectionAnchor.element, behavior);
-      return false;
-    }
-
-    scrollTowardAnchor(sectionAnchor, index, item?.level ?? 1, behavior);
-    return false;
-  }
-
-  const anchor = currentMountedAnchor(items, index);
+  const anchor = currentMountedAnchor(items, index) ?? parentSectionAnchor(items, index);
   if (!anchor) {
     return false;
   }
@@ -314,21 +322,52 @@ export function scrollToOutlineItem(items: OutlineItem[], index: number, behavio
   return false;
 }
 
+export function pendingScrollAttempts(
+  previous: PendingScroll,
+  current: { position?: number; height?: number; messages: string; loading: boolean }
+): number {
+  const moved = current.position !== undefined && previous.lastScrollTop !== undefined &&
+    Math.abs(current.position - previous.lastScrollTop) > outlineScrollAlignmentTolerance;
+  const resized = current.height !== undefined && previous.lastScrollHeight !== undefined &&
+    current.height !== previous.lastScrollHeight;
+  const mounted = previous.lastMountedMessages !== undefined && current.messages !== previous.lastMountedMessages;
+  if (moved || resized || mounted) return 0;
+  return current.loading ? previous.attempts : previous.attempts + 1;
+}
+
 export function nextPendingScroll(items: OutlineItem[], pendingScroll: PendingScroll): PendingScroll | null {
   const index = items.findIndex((item) => item.id === pendingScroll.id);
   if (index < 0) {
     return null;
   }
 
+  const now = Date.now();
+  const startedAt = pendingScroll.startedAt ?? now;
+  if (now - startedAt >= 60_000) return null;
+  const anchor = currentMountedAnchor(items, index);
+  const container = anchor ? scrollContainerFor(anchor.element) : null;
+  const position = container?.scrollTop;
+  const height = container?.scrollHeight;
+  const messages = container ? Array.from(container.querySelectorAll<HTMLElement>(
+    "[data-chatgpt-search-message-ids], [data-message-id]"
+  )).map((element) => element.getAttribute("data-chatgpt-search-message-ids") ??
+    element.getAttribute("data-message-id")).join("|") : "";
+  const loading = Boolean(container?.matches('[aria-busy="true"]') ||
+    container?.querySelector('[aria-busy="true"]'));
+  const attempts = pendingScrollAttempts(pendingScroll, { position, height, messages, loading });
   const behavior: ScrollBehavior = exactOutlineElement(items[index]) ? "smooth" : "auto";
   const reachedExactTarget = scrollToOutlineItem(items, index, behavior);
-  if (reachedExactTarget || pendingScroll.attempts + 1 >= maxPendingScrollAttempts) {
+  if (reachedExactTarget || attempts >= maxPendingScrollAttempts) {
     return null;
   }
 
   return {
     ...pendingScroll,
-    attempts: pendingScroll.attempts + 1,
+    attempts,
+    startedAt,
+    lastScrollTop: position,
+    lastScrollHeight: height,
+    lastMountedMessages: messages,
     index
   };
 }

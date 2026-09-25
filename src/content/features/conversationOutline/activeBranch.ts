@@ -183,7 +183,16 @@ export function resolveActiveBranchNodeId(
     return tree.activeNodeId;
   }
 
-  return mode === "api" ? activeApiDomTurnId(tree, pathTurns) : activeDomTurnId(pathTurns);
+  const candidate = mode === "api" ? activeApiDomTurnId(tree, pathTurns) : activeDomTurnId(pathTurns);
+  // A mounted ancestor is a viewport slice, not evidence of a branch change.
+  const seen = new Set<string>();
+  let current = tree.activeNodeId;
+  while (current && !seen.has(current)) {
+    if (current === candidate) return tree.activeNodeId;
+    seen.add(current);
+    current = tree.nodes.get(current)?.parentId ?? null;
+  }
+  return candidate;
 }
 
 export function correctActiveBranchFromDom(

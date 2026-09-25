@@ -1518,3 +1518,43 @@ body.dark .ecg-settings-dialog-overlay,
     display: none;
   }
 }
+
+/* Own the switch visuals instead of depending on ChatGPT's utility stylesheet. */
+.ecg-settings-switch {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 20px;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: #737373;
+  cursor: pointer;
+}
+
+.ecg-settings-switch[aria-checked="true"] {
+  background: #3b82f6;
+}
+
+.ecg-settings-switch:focus-visible {
+  outline: 2px solid var(--ecg-text);
+  outline-offset: 3px;
+}
+
+.ecg-settings-switch-thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 100ms ease;
+}
+
+.ecg-settings-switch[aria-checked="true"] .ecg-settings-switch-thumb {
+  transform: translateX(12px);
+}
+
+[dir="rtl"] .ecg-settings-switch[aria-checked="true"] .ecg-settings-switch-thumb {
+  transform: translateX(-12px);
+}

@@ -182,7 +182,7 @@ test("API mode retains the current active node when descendant evidence is ambig
   assert.equal(resolveActiveBranchNodeId(original, [turn("user-1", { role: "user" })], "api"), "answer-1");
 });
 
-test("virtualized assistant shells resolve to the canonical message node", () => {
+test("virtualized assistant shells preserve the active descendant of their canonical node", () => {
   const canonical = node("message-1", {
     children: ["user-2"],
     domTurnId: "turn-1",
@@ -201,7 +201,7 @@ test("virtualized assistant shells resolve to the canonical message node", () =>
       [turn("turn-1", { domTurnId: "turn-1", hasMountedMessage: false, parentId: "user-1" })],
       "dom"
     ),
-    "message-1"
+    "user-2"
   );
 });
 
@@ -211,4 +211,16 @@ test("DOM data merge never changes activeNodeId", () => {
   const merged = mergeDomOutlineTurns(original, [turn("answer-2", { parentId: "user-1" })]);
 
   assert.equal(merged.activeNodeId, "answer-1");
+});
+
+test("scrolling to a mounted ancestor never truncates the active path", () => {
+  const original = tree([
+    node("user-1", { role: "user", children: ["answer-1"] }),
+    node("answer-1", { parentId: "user-1", children: ["user-2"] }),
+    node("user-2", { role: "user", parentId: "answer-1", children: ["answer-2"] }),
+    node("answer-2", { parentId: "user-2" })
+  ], "answer-2");
+  for (const mode of ["api", "dom"]) {
+    assert.equal(correctActiveBranchFromDom(original, [turn("answer-1", { hasMountedMessage: true })], mode), original);
+  }
 });

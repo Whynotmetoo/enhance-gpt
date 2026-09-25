@@ -50,10 +50,14 @@ function mergeOutlineItems(
 
   const existingItemsByKey = new Map(existingItems.map((item) => [outlineItemKey(item), item]));
 
-  return incomingItems.map((item) => {
-    const existing = existingItemsByKey.get(outlineItemKey(item));
-    return existing ? mergeExistingOutlineItem(existing, item) : item;
-  });
+  const incomingByKey = new Map(incomingItems.map((item) => [outlineItemKey(item), item]));
+  const retained = existingItems
+    .filter((item) => item.source === "api" || !canPruneOutlineItems || incomingByKey.has(outlineItemKey(item)))
+    .map((item) => {
+      const incoming = incomingByKey.get(outlineItemKey(item));
+      return incoming ? mergeExistingOutlineItem(item, incoming) : item;
+    });
+  return [...retained, ...incomingItems.filter((item) => !existingItemsByKey.has(outlineItemKey(item)))];
 }
 
 function addRootId(rootIds: string[], nodeId: string): string[] {

@@ -53,6 +53,10 @@ export type DomOutlineTurn = {
 };
 
 export type PendingScroll = {
+  startedAt?: number;
+  lastScrollTop?: number;
+  lastScrollHeight?: number;
+  lastMountedMessages?: string;
   attempts: number;
   id: string;
   index: number;

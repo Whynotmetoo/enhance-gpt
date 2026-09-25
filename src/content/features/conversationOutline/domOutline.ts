@@ -15,6 +15,11 @@ export function collectTurnElements(): HTMLElement[] {
     return [];
   }
 
+  const units = Array.from(root.querySelectorAll<HTMLElement>("[data-chatgpt-search-unit-key][data-chatgpt-search-message-ids]"));
+  if (units.length > 0) {
+    return units.sort(compareDocumentOrder);
+  }
+
   const turns = Array.from(root.querySelectorAll<HTMLElement>(turnSelector));
   if (turns.length > 0) {
     return turns.sort(compareDocumentOrder);
@@ -87,6 +92,10 @@ export function conversationIdFromLocation(): string | null {
 }
 
 function turnRole(turn: HTMLElement): "user" | "assistant" | null {
+  const unitRole = turn.getAttribute("data-chatgpt-search-unit-key")?.split(":").pop();
+  if (unitRole === "user" || unitRole === "assistant") {
+    return unitRole;
+  }
   const turnValue = turn.getAttribute("data-turn");
   if (turnValue === "user" || turnValue === "assistant") {
     return turnValue;
@@ -110,6 +119,7 @@ function stableOutlineId(element: HTMLElement, prefix: string, index: number): s
     element.getAttribute("data-section-id") ??
     element.closest<HTMLElement>("[data-section-id]")?.getAttribute("data-section-id");
   const messageId =
+    messageIdFromElement(element.closest<HTMLElement>("[data-chatgpt-search-message-ids]")) ??
     element.closest<HTMLElement>("[data-message-id]")?.getAttribute("data-message-id") ??
     element.closest<HTMLElement>("[data-turn-id]")?.getAttribute("data-turn-id");
   const start = element.getAttribute("data-start");
@@ -132,6 +142,9 @@ function assistantMessageElements(turn: HTMLElement): HTMLElement[] {
 }
 
 function messageElementFromTurn(turn: HTMLElement, role: "user" | "assistant" | null): HTMLElement | null {
+  if (turn.hasAttribute("data-chatgpt-search-message-ids")) {
+    return turn;
+  }
   if (role === "assistant") {
     const messages = assistantMessageElements(turn);
     return (
@@ -152,16 +165,32 @@ function messageElementFromTurn(turn: HTMLElement, role: "user" | "assistant" | 
   return turn.querySelector<HTMLElement>("[data-message-id]");
 }
 
+export function messageIdFromElement(element: HTMLElement | null): string | null {
+  if (!element) return null;
+  const explicit = element.getAttribute("data-chatgpt-selection-message-id") ?? element.getAttribute("data-message-id");
+  if (explicit) return explicit;
+
+  // Search units can aggregate tool/intermediate ids. Only trust rendered content.
+  const renderedIds = new Set(Array.from(element.querySelectorAll<HTMLElement>(
+    '[data-markdown-text-style="assistant-message"], [data-user-message-bubble]'
+  )).map((body) => body.closest<HTMLElement>("[data-chatgpt-selection-message-id]")
+    ?.getAttribute("data-chatgpt-selection-message-id")).filter((id): id is string => Boolean(id)));
+  if (renderedIds.size > 0) return renderedIds.size === 1 ? [...renderedIds][0] : null;
+
+  const ids = new Set(element.getAttribute("data-chatgpt-search-message-ids")?.trim().split(/\s+/).filter(Boolean));
+  return ids.size === 1 ? [...ids][0] : null;
+}
+
 function messageIdFromTurn(turn: HTMLElement, role: "user" | "assistant" | null): string | null {
-  return messageElementFromTurn(turn, role)?.getAttribute("data-message-id") ?? turn.getAttribute("data-turn-id");
+  return messageIdFromElement(messageElementFromTurn(turn, role)) ?? turn.getAttribute("data-turn-id");
 }
 
 function messageIdForHeading(element: HTMLElement, fallback: string | null): string | null {
-  return element.closest<HTMLElement>("[data-message-id]")?.getAttribute("data-message-id") ?? fallback;
+  return messageIdFromElement(element.closest<HTMLElement>("[data-chatgpt-selection-message-id], [data-message-id]")) ?? fallback;
 }
 
 function headingIndexInMessage(element: HTMLElement, fallback: number): number {
-  const message = element.closest<HTMLElement>("[data-message-id]");
+  const message = element.closest<HTMLElement>("[data-chatgpt-selection-message-id], [data-message-id]");
   if (!message) {
     return fallback;
   }
@@ -173,6 +202,7 @@ function headingIndexInMessage(element: HTMLElement, fallback: number): number {
 
 function userLabel(turn: HTMLElement, index: number): string {
   const source =
+    turn.querySelector<HTMLElement>("[data-user-message-bubble]") ??
     turn.querySelector<HTMLElement>("[data-message-author-role='user'] .whitespace-pre-wrap") ??
     turn.querySelector<HTMLElement>("[data-message-author-role='user']") ??
     turn;
@@ -181,7 +211,9 @@ function userLabel(turn: HTMLElement, index: number): string {
 }
 
 function answerHeadings(root: HTMLElement): HTMLElement[] {
-  return Array.from(root.querySelectorAll<HTMLElement>(answerHeadingSelector))
+  const selector = answerHeadingSelector;
+  return Array.from(root.querySelectorAll<HTMLElement>(selector))
+    .filter((heading) => !heading.matches(".sr-only, [data-conversation-role]"))
     .filter(isVisible)
     .filter((heading) => !heading.closest("pre, code, [data-testid='code-block']"))
     .sort(compareDocumentOrder);
@@ -251,7 +283,7 @@ export function collectDomOutlineTurns(): DomOutlineTurn[] {
     const role = turnRole(turn);
     const message = messageElementFromTurn(turn, role);
     const domTurnId = domTurnIdFromElement(turn);
-    const messageId = message?.getAttribute("data-message-id") ?? null;
+    const messageId = messageIdFromElement(message);
     const id = messageId ?? domTurnId;
     const hasMountedMessage = Boolean(message);
     const turnVisible = isVisible(turn);
@@ -351,12 +383,17 @@ export function collectDomOutlineItems(): OutlineItem[] {
 
 function findMessageElement(messageId: string): HTMLElement | null {
   const escaped = cssEscape(messageId);
-  const message = document.querySelector<HTMLElement>(`[data-message-id="${escaped}"]`);
+  const message = document.querySelector<HTMLElement>(`[data-chatgpt-selection-message-id="${escaped}"]`) ??
+    document.querySelector<HTMLElement>(`[data-message-id="${escaped}"]`);
   if (message) {
     return message;
   }
 
-  return document.querySelector<HTMLElement>(`[data-turn-id="${escaped}"]`);
+  const unit = document.querySelector<HTMLElement>(`[data-chatgpt-search-message-ids~="${escaped}"]`);
+  if (unit && messageIdFromElement(unit) === messageId) return unit;
+
+  return document.querySelector<HTMLElement>(`[data-turn-id="${escaped}"]`) ??
+    document.querySelector<HTMLElement>(`[data-turn-key="${escaped}"]`);
 }
 
 export function exactOutlineElement(item: OutlineItem): HTMLElement | null {
