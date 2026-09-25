@@ -242,10 +242,16 @@ export function ConversationBulkManager(): ReactElement | null {
     const observer = new MutationObserver(scheduleUpdate);
 
     update();
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-app-action-sidebar-section-collapsed", "data-sidebar-chatgpt-conversation-key", "aria-hidden", "aria-label", "data-app-shell-sidebar-open"]
+    });
 
     return () => {
       observer.disconnect();
+      scheduleUpdate.cancel();
       clearHeaderControls();
     };
   }, []);
@@ -264,7 +270,12 @@ export function ConversationBulkManager(): ReactElement | null {
     const observer = new MutationObserver(scheduleUpdate);
 
     update();
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-app-action-sidebar-section-collapsed", "data-sidebar-chatgpt-conversation-key", "aria-hidden", "aria-label", "data-app-shell-sidebar-open"]
+    });
 
     return () => {
       observer.disconnect();
