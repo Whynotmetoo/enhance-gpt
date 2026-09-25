@@ -95,7 +95,7 @@ vite.content.config.ts      IIFE build for manifest content script
 
 - The content script is scoped to `https://chatgpt.com/*` and `https://chat.openai.com/*`.
 - Prompt snippets are stored in `chrome.storage.local`, with `localStorage` fallback for non-extension development contexts.
-- Bulk delete/archive buttons currently emit `ecg:bulk-conversation-action` browser events instead of calling private ChatGPT APIs. This keeps the first version safe until a stable, explicit native-action adapter is implemented.
+- Bulk controls mount in the current app-shell sidebar’s Recents section. Selection reads conversation IDs from keyed sidebar rows, excluding pinned and project sections. Delete/archive actions require confirmation and run through the page-context API bridge.
 - CSS is prefixed with `ecg-` and loaded as a static content-script stylesheet.
 - Conversation outlines prefer ChatGPT's conversation JSON endpoint so long threads can be indexed before every message is mounted in the DOM.
 

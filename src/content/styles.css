@@ -373,7 +373,7 @@ body.light,
 }
 
 :root[data-ecg-bulk-active] .ecg-recents-trigger {
-  padding-left: 4px !important;
+  padding-inline-start: 6px !important;
 }
 
 [data-ecg-bulk-select-host],
@@ -385,12 +385,12 @@ body.light,
 }
 
 [data-ecg-bulk-select-host] {
-  margin-left: 8px;
+  /* Native section headers start 10px in; row checkboxes start 8px in. */
+  margin-inline-start: -2px;
 }
 
 [data-ecg-bulk-select-host]:empty {
   display: none;
-  margin-left: 0;
 }
 
 [data-ecg-bulk-actions-host] {
@@ -653,12 +653,12 @@ body.light,
   opacity: 1;
 }
 
-.ecg-conversation-row a[href*="/c/"] {
+.ecg-conversation-row .sidebar-item[role="button"] {
   transition: background-color 150ms ease, color 150ms ease;
 }
 
-:root[data-ecg-bulk-active] .ecg-conversation-row a[href*="/c/"] {
-  padding-left: 32px !important;
+:root[data-ecg-bulk-active] .ecg-conversation-row .sidebar-item[role="button"] {
+  padding-inline-start: 36px !important;
 }
 
 .ecg-conversation-checkbox:hover {
@@ -676,7 +676,7 @@ body.light,
   color: var(--ecg-text-soft);
 }
 
-.ecg-conversation-row-selected a[href*="/c/"] {
+.ecg-conversation-row-selected .sidebar-item[role="button"] {
   background: color-mix(
     in srgb,
     var(--surface-hover, var(--ecg-hover)) 86%,
