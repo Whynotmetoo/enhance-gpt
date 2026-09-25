@@ -62,3 +62,12 @@ test("DOM merge preserves ancestry when virtualization removes the beginning of 
   assert.deepEqual(merged.rootIds, ["user-1"]);
   assert.deepEqual(activePathItems(merged).map((item) => item.label), ["user-1", "answer-1", "user-2", "answer-2"]);
 });
+
+test("partial DOM headings cannot remove complete API headings", () => {
+  const headings = [0, 1, 2].map(index => ({ ...outlineItem(`heading-${index}`, `Heading ${index}`), kind: "heading", level: 2, headingIndex: index, messageId: "answer", source: "api" }));
+  const answer = { ...node("answer"), outlineItems: headings };
+  const original = { activeNodeId: "answer", conversationId: "test", nodes: new Map([["answer", answer]]), rootIds: ["answer"] };
+  const merged = mergeDomOutlineTurns(original, [{ ...turn("answer"), canPruneOutlineItems: true, outlineItems: [{ ...headings[0], source: "dom" }] }], { preserveExistingStructure: true });
+  assert.deepEqual(activePathItems(merged).map(item => item.id), headings.map(item => item.id));
+  assert.ok(activePathItems(merged).every(item => item.source === "api"));
+});

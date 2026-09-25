@@ -70,10 +70,6 @@ type BulkTooltipButtonProps = ComponentPropsWithoutRef<"button"> & {
 };
 
 const nativeTocHiddenClass = "ecg-native-toc-hidden";
-const nativeSettingsSwitchClassName =
-  "radix-state-checked:bg-blue-400 focus-visible:ring-token-text-primary interactive-bg-control relative box-content aspect-7/4 shrink-0 rounded-full p-[2px] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:opacity-50 h-4";
-const nativeSettingsSwitchThumbClassName =
-  "radix-state-checked:translate-x-[calc(var(--to-end-unit,1)*100%*(7/4-1))] flex aspect-square h-full items-center justify-center rounded-full bg-white transition-transform duration-100";
 
 function nativePromptNavigationContainer(): HTMLElement | null {
   const promptButtons = nativePromptButtons();
@@ -1003,7 +999,7 @@ export function ConversationBulkManager(): ReactElement | null {
                     aria-checked={settings.hideNativeTableOfContents}
                     aria-describedby={hideNativeTocDescriptionId}
                     aria-labelledby={hideNativeTocLabelId}
-                    className={nativeSettingsSwitchClassName}
+                    className="ecg-settings-switch"
                     data-state={settings.hideNativeTableOfContents ? "checked" : "unchecked"}
                     role="switch"
                     type="button"
@@ -1011,7 +1007,7 @@ export function ConversationBulkManager(): ReactElement | null {
                     onClick={toggleNativeTableOfContentsSetting}
                   >
                     <span
-                      className={nativeSettingsSwitchThumbClassName}
+                      className="ecg-settings-switch-thumb"
                       data-state={settings.hideNativeTableOfContents ? "checked" : "unchecked"}
                     />
                   </button>
