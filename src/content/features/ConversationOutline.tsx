@@ -432,7 +432,7 @@ export function ConversationOutline(): ReactElement | null {
 
     if (target) {
       setPendingScroll({
-        attempts: 0,
+        lastProgressAt: Date.now(),
         id: item.id,
         index: item.originalIndex
       });
@@ -444,7 +444,7 @@ export function ConversationOutline(): ReactElement | null {
       reachedExactTarget
         ? null
         : {
-            attempts: 0,
+            lastProgressAt: Date.now(),
             id: item.id,
             index: item.originalIndex
           }

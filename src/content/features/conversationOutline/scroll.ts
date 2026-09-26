@@ -1,5 +1,5 @@
 import {
-  maxPendingScrollAttempts,
+  pendingScrollStallTimeoutMs,
   outlineScrollAlignmentTolerance,
   outlineSmoothScrollDurationMs,
   outlineScrollTopOffset,
@@ -322,17 +322,18 @@ export function scrollToOutlineItem(items: OutlineItem[], index: number, behavio
   return false;
 }
 
-export function pendingScrollAttempts(
+export function pendingScrollProgressAt(
   previous: PendingScroll,
-  current: { position?: number; height?: number; messages: string; loading: boolean }
+  current: { position?: number; height?: number; messages: string; loading: boolean },
+  now: number
 ): number {
   const moved = current.position !== undefined && previous.lastScrollTop !== undefined &&
     Math.abs(current.position - previous.lastScrollTop) > outlineScrollAlignmentTolerance;
   const resized = current.height !== undefined && previous.lastScrollHeight !== undefined &&
     current.height !== previous.lastScrollHeight;
   const mounted = previous.lastMountedMessages !== undefined && current.messages !== previous.lastMountedMessages;
-  if (moved || resized || mounted) return 0;
-  return current.loading ? previous.attempts : previous.attempts + 1;
+  if (moved || resized || mounted || current.loading) return now;
+  return previous.lastProgressAt ?? now;
 }
 
 export function nextPendingScroll(items: OutlineItem[], pendingScroll: PendingScroll): PendingScroll | null {
@@ -354,16 +355,16 @@ export function nextPendingScroll(items: OutlineItem[], pendingScroll: PendingSc
     element.getAttribute("data-message-id")).join("|") : "";
   const loading = Boolean(container?.matches('[aria-busy="true"]') ||
     container?.querySelector('[aria-busy="true"]'));
-  const attempts = pendingScrollAttempts(pendingScroll, { position, height, messages, loading });
+  const lastProgressAt = pendingScrollProgressAt(pendingScroll, { position, height, messages, loading }, now);
   const behavior: ScrollBehavior = exactOutlineElement(items[index]) ? "smooth" : "auto";
   const reachedExactTarget = scrollToOutlineItem(items, index, behavior);
-  if (reachedExactTarget || attempts >= maxPendingScrollAttempts) {
+  if (reachedExactTarget || now - lastProgressAt >= pendingScrollStallTimeoutMs) {
     return null;
   }
 
   return {
     ...pendingScroll,
-    attempts,
+    lastProgressAt,
     startedAt,
     lastScrollTop: position,
     lastScrollHeight: height,
