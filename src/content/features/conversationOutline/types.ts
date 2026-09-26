@@ -6,6 +6,7 @@ export type OutlineSourceKind = "api" | "dom";
 export type OutlineItem = {
   id: string;
   label: string;
+  fullHeadingText?: string;
   level: number;
   kind: OutlineKind;
   messageId: string | null;

@@ -396,6 +396,29 @@ function findMessageElement(messageId: string): HTMLElement | null {
     document.querySelector<HTMLElement>(`[data-turn-key="${escaped}"]`);
 }
 
+// Navigation-only fallback: never assign an aggregate unit to a tree message.
+function aggregateHeadingElement(item: OutlineItem): HTMLElement | null {
+  if (item.kind !== "heading" || !item.messageId || item.headingIndex === null || item.source !== "api") return null;
+  const units = Array.from(document.querySelectorAll<HTMLElement>(
+    `[data-chatgpt-search-message-ids~="${cssEscape(item.messageId)}"]`
+  ));
+  if (units.length !== 1) return null;
+  const unit = units[0];
+  if (!unit.getAttribute("data-chatgpt-search-unit-key")?.endsWith(":assistant")) return null;
+  const bodies = unit.querySelectorAll<HTMLElement>('[data-markdown-text-style="assistant-message"]');
+  if (bodies.length !== 1) return null;
+  // Explicit ownership must never be overridden by a text match.
+  if (bodies[0].closest("[data-chatgpt-selection-message-id], [data-message-id]")) return null;
+  const headings = answerHeadings(unit).filter((heading) => bodies[0].contains(heading));
+  const label = (item.fullHeadingText ?? item.label).replace(/\s+/g, " ").trim();
+  const matches = headings.filter((heading) => heading.textContent?.replace(/\s+/g, " ").trim() === label);
+  // Rich responses can render a different heading sequence from API Markdown.
+  // Require unique full text instead of using its Markdown ordinal as a DOM index.
+  const candidate = matches.length === 1 ? matches[0] : null;
+  if (candidate?.closest("[data-chatgpt-selection-message-id], [data-message-id]")) return null;
+  return candidate;
+}
+
 export function exactOutlineElement(item: OutlineItem): HTMLElement | null {
   if (!item.messageId) {
     return visibleConnectedElement(item.element);
@@ -403,7 +426,7 @@ export function exactOutlineElement(item: OutlineItem): HTMLElement | null {
 
   const message = findMessageElement(item.messageId);
   if (!message) {
-    return visibleConnectedElement(item.element);
+    return aggregateHeadingElement(item) ?? visibleConnectedElement(item.element);
   }
 
   const turn = message.closest<HTMLElement>("[data-turn-id]") ?? message;
@@ -423,7 +446,7 @@ function bindOutlineItem(item: OutlineItem): OutlineItem {
 
   const message = findMessageElement(item.messageId);
   if (!message) {
-    return { ...item, element: visibleConnectedElement(item.element) };
+    return { ...item, element: aggregateHeadingElement(item) ?? visibleConnectedElement(item.element) };
   }
 
   const turn = message.closest<HTMLElement>("[data-turn-id]") ?? message;
@@ -470,6 +493,7 @@ function domHeadingItemsForMessage(messageId: string, apiItems: OutlineItem[]): 
     return {
       id: apiItem?.id ?? stableOutlineId(element, "heading", headingIndex),
       label: normalizeLabel(element.textContent, apiItem?.label ?? "ChatGPT response"),
+      fullHeadingText: apiItem?.fullHeadingText,
       level: apiItem?.level ?? 2,
       kind: "heading",
       messageId,
