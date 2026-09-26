@@ -7,7 +7,7 @@ export const messageSelector = "[data-message-author-role='user'], [data-message
 export const answerHeadingSelector = '.markdown :is(h1, h2, h3, h4, h5, h6), [data-markdown-text-style="assistant-message"] :is(h1, h2, h3, h4, h5, h6)';
 export const conversationPathPattern = /^\/c\/([^/?#]+)/;
 export const locationChangeSource = `${EXTENSION_NAMESPACE}:location-changed`;
-export const maxPendingScrollAttempts = 8;
+export const pendingScrollStallTimeoutMs = 10_000;
 export const pendingScrollDelayMs = 240;
 export const pendingScrollStepRatio = 0.7;
 export const pendingScrollMinStep = 480;

@@ -57,7 +57,7 @@ export type PendingScroll = {
   lastScrollTop?: number;
   lastScrollHeight?: number;
   lastMountedMessages?: string;
-  attempts: number;
+  lastProgressAt?: number;
   id: string;
   index: number;
 };

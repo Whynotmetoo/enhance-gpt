@@ -67,17 +67,14 @@ test("targets the preceding user turn shell for an unmounted answer heading", as
   } finally { globalThis.document = saved; }
 });
 
-test("counts eight stalled checks but resets for mounted messages or changed scroll range", async () => {
-  const { pendingScrollAttempts } = await import("../src/content/features/conversationOutline/scroll.ts");
-  const { maxPendingScrollAttempts } = await import("../src/content/features/conversationOutline/constants.ts");
-  const previous = { attempts: 7, lastScrollTop: -500, lastScrollHeight: 2000, lastMountedMessages: "a|b" };
+test("tracks elapsed stall time and renews the grace period for progress or loading", async () => {
+  const { pendingScrollProgressAt } = await import("../src/content/features/conversationOutline/scroll.ts");
+  const previous = { lastProgressAt: 1000, lastScrollTop: -500, lastScrollHeight: 2000, lastMountedMessages: "a|b" };
   const current = { position: -500, height: 2000, messages: "a|b", loading: false };
-  assert.equal(maxPendingScrollAttempts, 8);
-  assert.equal(pendingScrollAttempts(previous, current), 8);
-  assert.equal(pendingScrollAttempts(previous, { ...current, messages: "b|c" }), 0);
-  assert.equal(pendingScrollAttempts(previous, { ...current, height: 2500 }), 0);
-  assert.equal(pendingScrollAttempts(previous, { ...current, position: -600 }), 0);
-  assert.equal(pendingScrollAttempts(previous, { ...current, loading: true }), 7);
+  assert.equal(pendingScrollProgressAt(previous, current, 4000), 1000);
+  for (const change of [{ messages: "b|c" }, { height: 2500 }, { position: -600 }, { loading: true }]) {
+    assert.equal(pendingScrollProgressAt(previous, { ...current, ...change }, 4000), 4000);
+  }
 });
 
 test("aggregate search ids never select an intermediate tool message", async () => {
@@ -99,9 +96,13 @@ test("busy transcripts still scroll toward unmounted targets and respect the dea
   const savedDocument = globalThis.document;
   const savedWindow = globalThis.window;
   const calls = [];
+  let busy = true;
+  const savedNow = Date.now;
+  let now = 100000;
+  Date.now = () => now;
   const container = {
     scrollTop: 0, scrollHeight: 10000, clientHeight: 500,
-    matches: () => false, querySelector: () => ({}), querySelectorAll: () => [],
+    matches: () => false, querySelector: () => busy ? {} : null, querySelectorAll: () => [],
     scrollTo: options => calls.push(options)
   };
   const anchor = {
@@ -118,13 +119,30 @@ test("busy transcripts still scroll toward unmounted targets and respect the dea
       { id: "a", kind: "user", messageId: "a", element: anchor, level: 1 },
       { id: "b", kind: "user", messageId: "b", element: null, level: 1 }
     ];
-    const pending = { id: "b", index: 1, attempts: 3, startedAt: Date.now() };
-    assert.equal(nextPendingScroll(items, pending).attempts, 3);
+    const pending = { id: "b", index: 1, lastProgressAt: Date.now(), startedAt: Date.now() };
+    assert.ok(nextPendingScroll(items, pending));
     assert.equal(calls.length, 1);
     assert.ok(calls[0].top > 0);
     assert.equal(nextPendingScroll(items, { ...pending, startedAt: Date.now() - 60001 }), null);
     assert.equal(calls.length, 1);
+    busy = false;
+    let retry = nextPendingScroll(items, pending);
+    for (let i = 0; i < 12; i += 1) {
+      now += 240;
+      retry = nextPendingScroll(items, retry);
+      assert.ok(retry, "unmarked loading lasting more than two seconds must not cancel");
+    }
+    now = 109999;
+    assert.ok(nextPendingScroll(items, retry));
+    now = 110000;
+    assert.equal(nextPendingScroll(items, retry), null);
+    now = 108000;
+    container.scrollHeight += 1000;
+    retry = nextPendingScroll(items, retry);
+    now = 115000;
+    assert.ok(nextPendingScroll(items, retry), "new content renews the grace period");
   } finally {
+    Date.now = savedNow;
     globalThis.document = savedDocument;
     globalThis.window = savedWindow;
   }
