@@ -244,6 +244,7 @@ function outlineItemsFromApiMessage(nodeId: string, message: ApiMessage): Outlin
     items.push({
       id: `outline-heading-${id}-${headingIndex}`,
       label: normalizeLabel(heading.label, "ChatGPT response"),
+      fullHeadingText: heading.label,
       level: 2,
       kind: "heading",
       messageId: id,

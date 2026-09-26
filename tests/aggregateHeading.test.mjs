@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { treeFromApiConversation } from "../src/content/features/conversationOutline/apiOutline.ts";
 import { exactOutlineElement, bindOutlineItems, messageIdFromElement } from "../src/content/features/conversationOutline/domOutline.ts";
 
 test("aggregate navigation requires unique full text, body and unit without changing identity", () => {
@@ -45,6 +46,32 @@ test("aggregate navigation requires unique full text, body and unit without chan
     headings.push(makeHeading("本轮岗位筛选"));
     assert.equal(exactOutlineElement(item), null);
     headings.pop();
+    for (const attribute of ["data-message-id", "data-chatgpt-selection-message-id"]) {
+      headings[0].closest = selector => selector.includes(attribute) ? { getAttribute: () => "other" } : null;
+      assert.equal(exactOutlineElement(item), null, "nested ownership must block fallback");
+    }
+    headings[0].closest = () => null;
+    const fullText = "Long heading ".repeat(12).trim();
+    const tree = treeFromApiConversation("conversation", {
+      current_node: "final",
+      mapping: {
+        final: { id: "final", parent: null, children: [], message: {
+          id: "final", author: { role: "assistant" },
+          content: { content_type: "text", parts: ["## " + fullText] }
+        }}
+      }
+    });
+    const longItem = tree.nodes.get("final").outlineItems[0];
+    assert.notEqual(longItem.label, fullText);
+    assert.equal(longItem.fullHeadingText, fullText);
+    headings = [makeHeading(fullText)];
+    assert.equal(exactOutlineElement(longItem), headings[0]);
+    assert.equal(bindOutlineItems([longItem])[0].fullHeadingText, fullText);
+    headings.push(makeHeading(fullText + " different suffix"));
+    assert.equal(exactOutlineElement(longItem), headings[0], "same truncated prefix is not a full match");
+    headings.push(makeHeading(fullText));
+    assert.equal(exactOutlineElement(longItem), null, "duplicate full text remains ambiguous");
+    headings = [makeHeading(item.label)];
     count = 2;
     assert.equal(exactOutlineElement(item), null);
     count = 1;

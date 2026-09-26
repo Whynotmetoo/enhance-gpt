@@ -410,11 +410,13 @@ function aggregateHeadingElement(item: OutlineItem): HTMLElement | null {
   // Explicit ownership must never be overridden by a text match.
   if (bodies[0].closest("[data-chatgpt-selection-message-id], [data-message-id]")) return null;
   const headings = answerHeadings(unit).filter((heading) => bodies[0].contains(heading));
-  const label = item.label.replace(/\s+/g, " ").trim();
+  const label = (item.fullHeadingText ?? item.label).replace(/\s+/g, " ").trim();
   const matches = headings.filter((heading) => heading.textContent?.replace(/\s+/g, " ").trim() === label);
   // Rich responses can render a different heading sequence from API Markdown.
   // Require unique full text instead of using its Markdown ordinal as a DOM index.
-  return matches.length === 1 ? matches[0] : null;
+  const candidate = matches.length === 1 ? matches[0] : null;
+  if (candidate?.closest("[data-chatgpt-selection-message-id], [data-message-id]")) return null;
+  return candidate;
 }
 
 export function exactOutlineElement(item: OutlineItem): HTMLElement | null {
@@ -491,6 +493,7 @@ function domHeadingItemsForMessage(messageId: string, apiItems: OutlineItem[]): 
     return {
       id: apiItem?.id ?? stableOutlineId(element, "heading", headingIndex),
       label: normalizeLabel(element.textContent, apiItem?.label ?? "ChatGPT response"),
+      fullHeadingText: apiItem?.fullHeadingText,
       level: apiItem?.level ?? 2,
       kind: "heading",
       messageId,
