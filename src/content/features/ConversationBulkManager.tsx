@@ -952,7 +952,7 @@ export function ConversationBulkManager(): ReactElement | null {
       {archiveMenu}
       {toastElement}
       <AlertModal
-        contentClassName="ecg-settings-dialog popover bg-token-bg-primary rounded-2xl shadow-long flex flex-col focus:outline-hidden overflow-hidden"
+        contentClassName="ecg-settings-dialog"
         initialFocusRef={settingsCloseRef}
         open={isSettingsDialogOpen}
         overlayClassName="ecg-settings-dialog-overlay"
