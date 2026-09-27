@@ -44,14 +44,14 @@
 }
 
 .ecg-intro-modal {
-  background: color-mix(in oklab, var(--color-surface-elevated-secondary, var(--ecg-surface-strong)) 90%, transparent);
+  background: color-mix(in oklab, var(--color-surface-elevated-secondary, var(--ecg-intro-surface)) 90%, transparent);
   -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
   border: 0;
   border-radius: 24px;
-  box-shadow: 0 0 0 0.5px var(--border-default, var(--ecg-line)), 0 4px 8px -2px rgb(0 0 0 / 10%);
+  box-shadow: 0 0 0 0.5px var(--border-default, var(--ecg-intro-line)), 0 4px 8px -2px rgb(0 0 0 / 10%);
   box-sizing: border-box;
-  color: var(--color-text-primary, var(--ecg-text));
+  color: var(--color-text-primary, var(--ecg-intro-text));
   display: grid;
   font-family:
     ui-sans-serif,
@@ -103,7 +103,7 @@
 }
 
 .ecg-intro-eyebrow {
-  color: var(--ecg-intro-text-soft);
+  color: var(--color-text-tertiary, var(--ecg-intro-text-soft));
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -113,7 +113,7 @@
 }
 
 .ecg-intro-header h2 {
-  color: var(--ecg-intro-text);
+  color: var(--color-text-primary, var(--ecg-intro-text));
   font-size: 23px;
   font-weight: 800;
   letter-spacing: 0;
@@ -126,7 +126,7 @@
   background: transparent;
   border: 0;
   border-radius: 8px;
-  color: var(--text-secondary, var(--ecg-intro-text-muted));
+  color: var(--text-secondary, var(--color-text-secondary, var(--ecg-intro-text-muted)));
   cursor: pointer;
   display: inline-flex;
   font: inherit;
@@ -140,7 +140,7 @@
 .ecg-intro-close:hover,
 .ecg-intro-close:focus-visible {
   background: var(--surface-hover, var(--ecg-intro-surface-hover));
-  color: var(--text-primary, var(--ecg-intro-text));
+  color: var(--text-primary, var(--color-text-primary, var(--ecg-intro-text)));
   outline: none;
 }
 
@@ -150,7 +150,7 @@
 }
 
 .ecg-intro-lede {
-  color: var(--ecg-intro-text);
+  color: var(--color-text-primary, var(--ecg-intro-text));
   font-size: 15px;
   line-height: 1.55;
   margin: 0;
@@ -164,10 +164,10 @@
 
 .ecg-intro-feature-grid span {
   align-items: center;
-  background: var(--ecg-intro-surface-muted);
-  border: 1px solid var(--ecg-intro-line);
+  background: var(--color-background-primary-soft-alpha, var(--ecg-intro-surface-muted));
+  border: 1px solid var(--border-default, var(--ecg-intro-line));
   border-radius: 8px;
-  color: var(--ecg-intro-text);
+  color: var(--color-text-primary, var(--ecg-intro-text));
   display: flex;
   font-size: 13px;
   font-weight: 700;
@@ -177,14 +177,14 @@
 }
 
 .ecg-intro-privacy {
-  border-top: 1px solid var(--ecg-intro-line);
+  border-top: 1px solid var(--border-default, var(--ecg-intro-line));
   display: grid;
   gap: 7px;
   padding-top: 16px;
 }
 
 .ecg-intro-privacy h3 {
-  color: var(--ecg-intro-text);
+  color: var(--color-text-primary, var(--ecg-intro-text));
   font-size: 15px;
   font-weight: 800;
   letter-spacing: 0;
@@ -193,22 +193,22 @@
 }
 
 .ecg-intro-privacy p {
-  color: var(--ecg-intro-text-muted);
+  color: var(--color-text-secondary, var(--ecg-intro-text-muted));
   font-size: 14px;
   line-height: 1.55;
   margin: 0;
 }
 
 .ecg-intro-links {
-  border-bottom: 1px solid var(--ecg-intro-line);
-  border-top: 1px solid var(--ecg-intro-line);
+  border-bottom: 1px solid var(--border-default, var(--ecg-intro-line));
+  border-top: 1px solid var(--border-default, var(--ecg-intro-line));
   display: grid;
 }
 
 .ecg-intro-links a {
   align-items: center;
-  border-bottom: 1px solid var(--ecg-intro-line);
-  color: var(--ecg-intro-text);
+  border-bottom: 1px solid var(--border-default, var(--ecg-intro-line));
+  color: var(--color-text-primary, var(--ecg-intro-text));
   display: flex;
   font-size: 14px;
   font-weight: 800;
@@ -238,7 +238,7 @@
 
 .ecg-intro-primary {
   align-items: center;
-  background: var(--text-primary, var(--ecg-intro-text));
+  background: var(--text-primary, var(--color-text-primary, var(--ecg-intro-text)));
   border: 1px solid transparent;
   border-radius: 999px;
   color: var(--main-surface-primary, var(--ecg-intro-surface));
@@ -888,8 +888,11 @@ body.light,
 }
 
 .ecg-bulk-dialog-danger {
-  background: color-mix(in srgb, var(--color-chart-red, #d92d20) 10%, transparent);
-  color: var(--color-chart-red, #d92d20);
+  /* Missing native red invalidates these tokens, selecting the solid fallback. */
+  --ecg-danger-tint: color-mix(in srgb, var(--color-chart-red) 10%, transparent);
+  --ecg-danger-hover-tint: color-mix(in srgb, var(--color-chart-red) 20%, transparent);
+  background: var(--ecg-danger-tint, #b42318);
+  color: var(--color-chart-red, #fff);
 }
 
 .ecg-bulk-dialog-primary {
@@ -905,7 +908,7 @@ body.light,
 
 .ecg-bulk-dialog-danger:hover,
 .ecg-bulk-dialog-danger:focus-visible {
-  background: color-mix(in srgb, var(--color-chart-red, #d92d20) 20%, transparent);
+  background: var(--ecg-danger-hover-tint, #912018);
   outline: none;
 }
 
@@ -1574,13 +1577,7 @@ body.light,
   right: 16px;
 }
 
-.ecg-intro-modal {
-  --ecg-intro-text: var(--color-text-primary, CanvasText);
-  --ecg-intro-text-muted: var(--color-text-secondary, GrayText);
-  --ecg-intro-text-soft: var(--color-text-tertiary, GrayText);
-  --ecg-intro-surface-muted: var(--color-background-primary-soft-alpha, Canvas);
-  --ecg-intro-line: var(--border-default, var(--ecg-line));
-}
+
 
 .ecg-intro-header h2 {
   font-size: 20px;
@@ -1590,7 +1587,7 @@ body.light,
 
 .ecg-intro-primary {
   background: var(--color-text-primary, var(--ecg-intro-text));
-  color: var(--color-text-inverse, Canvas);
+  color: var(--color-text-inverse, var(--ecg-intro-surface));
   font-size: 16px;
   font-weight: 400;
   height: 32px;
