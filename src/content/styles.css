@@ -668,11 +668,11 @@ body.light,
   opacity: 1;
 }
 
-.ecg-conversation-row .sidebar-item[role="button"] {
+.ecg-conversation-row .sidebar-item[role="group"] {
   transition: background-color 150ms ease, color 150ms ease;
 }
 
-:root[data-ecg-bulk-active] .ecg-conversation-row .sidebar-item[role="button"] {
+:root[data-ecg-bulk-active] .ecg-conversation-row .sidebar-item[role="group"] {
   padding-inline-start: 36px !important;
 }
 
@@ -691,7 +691,7 @@ body.light,
   color: var(--ecg-text-soft);
 }
 
-.ecg-conversation-row-selected .sidebar-item[role="button"] {
+.ecg-conversation-row-selected .sidebar-item[role="group"] {
   background: color-mix(
     in srgb,
     var(--surface-hover, var(--ecg-hover)) 86%,

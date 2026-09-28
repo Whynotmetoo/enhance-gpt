@@ -15,7 +15,7 @@ const secondId = "22222222-2222-4222-8222-222222222222";
 const keyAttribute = "data-sidebar-chatgpt-conversation-key";
 const suppressedClass = "ecg-conversation-row-suppressed";
 
-function row(id, title, { visible = true, hidden = false } = {}) {
+function row(id, title, { visible = true, hidden = false, hasLink = true } = {}) {
   const classes = new Set();
   return {
     key: `chatgpt:conversation:${id}`,
@@ -27,7 +27,8 @@ function row(id, title, { visible = true, hidden = false } = {}) {
     getAttribute(name) { return name === keyAttribute ? this.key : null; },
     closest() { return hidden ? {} : null; },
     querySelector(selector) {
-      assert.equal(selector, '[role="button"][aria-label]');
+      assert.equal(selector, 'a[data-interactive-row-link][href][aria-label]');
+      if (!hasLink) return null;
       return {
         getAttribute(name) { return name === "aria-label" ? title : null; },
         getBoundingClientRect() {
@@ -78,10 +79,10 @@ test("accepts only keyed ChatGPT conversations, never titles or other item types
   }
 });
 
-test("collects distinct visible keyed rows without anchors or title matching", () => {
+test("collects distinct visible keyed rows using current title links, without title-based identity", () => {
   const first = row(firstId, "Same title");
   const second = row(secondId, "Same title");
-  withSidebar([first, row(firstId, "Duplicate"), second, row("invalid", "Invalid")], () => {
+  withSidebar([first, row(firstId, "Duplicate"), second, row("invalid", "Invalid"), row("33333333-3333-4333-8333-333333333333", "Missing link", { hasLink: false })], () => {
     assert.deepEqual(collectConversationItems().map(({ id, title, href }) => ({ id, title, href })), [
       { id: firstId, title: "Same title", href: `https://chatgpt.com/c/${firstId}` },
       { id: secondId, title: "Same title", href: `https://chatgpt.com/c/${secondId}` }

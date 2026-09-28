@@ -16,7 +16,7 @@ const sidebarSelector = "#app-shell-sidebar";
 const recentsSelector = '[data-sidebar-project-container-id="chats"] [data-app-action-sidebar-section]';
 const conversationKeyAttribute = "data-sidebar-chatgpt-conversation-key";
 const conversationRowSelector = `[${conversationKeyAttribute}]`;
-const conversationButtonSelector = '[role="button"][aria-label]';
+const conversationLinkSelector = 'a[data-interactive-row-link][href][aria-label]';
 
 type ExtensionGlobal = typeof globalThis & {
   browser?: { runtime?: { getURL?: (path: string) => string } };
@@ -100,14 +100,14 @@ export function collectConversationItems(): ConversationItem[] {
   return Array.from(recents.querySelectorAll<HTMLElement>(conversationRowSelector))
     .map((row) => {
       const id = conversationIdForRow(row);
-      const button = row.querySelector<HTMLElement>(conversationButtonSelector);
-      if (!id || seen.has(id) || !button || !isVisible(button) || row.closest('[aria-hidden="true"]')) {
+      const link = row.querySelector<HTMLAnchorElement>(conversationLinkSelector);
+      if (!id || seen.has(id) || !link || !isVisible(link) || row.closest('[aria-hidden="true"]')) {
         return null;
       }
       seen.add(id);
       return {
         id,
-        title: button.getAttribute("aria-label")?.trim() || "Untitled chat",
+        title: link.getAttribute("aria-label")?.trim() || "Untitled chat",
         href: new URL(`/c/${id}`, window.location.origin).href,
         row
       };
