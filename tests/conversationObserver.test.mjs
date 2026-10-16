@@ -5,9 +5,10 @@ import { observeConversationMutations } from "../src/content/features/conversati
 test("conversation mutation observation follows a replaced thread root", () => {
   const originalDocument = globalThis.document;
   const originalMutationObserver = globalThis.MutationObserver;
+  const originalGetComputedStyle = globalThis.getComputedStyle;
   const body = { id: "body" };
-  const firstRoot = { id: "first-root" };
-  const secondRoot = { id: "second-root" };
+  const firstRoot = { id: "first-root", getBoundingClientRect: () => ({ width: 100, height: 100 }) };
+  const secondRoot = { id: "second-root", getBoundingClientRect: () => ({ width: 100, height: 100 }) };
   let currentRoot = firstRoot;
 
   class FakeMutationObserver {
@@ -35,11 +36,12 @@ test("conversation mutation observation follows a replaced thread root", () => {
 
   globalThis.document = {
     body,
-    querySelector(selector) {
-      return selector === "#thread" ? currentRoot : null;
+    querySelectorAll(selector) {
+      return selector === "#thread" ? [currentRoot] : [];
     }
   };
   globalThis.MutationObserver = FakeMutationObserver;
+  globalThis.getComputedStyle = () => ({ display: "block", visibility: "visible" });
 
   try {
     let scheduledUpdates = 0;
@@ -58,7 +60,7 @@ test("conversation mutation observation follows a replaced thread root", () => {
     assert.equal(conversationObserver.observations[0].target, firstRoot);
     assert.deepEqual(rootObserver.observations, [
       {
-        options: { childList: true, subtree: true },
+        options: { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style", "hidden", "aria-hidden"] },
         target: body
       }
     ]);
@@ -83,5 +85,6 @@ test("conversation mutation observation follows a replaced thread root", () => {
   } finally {
     globalThis.document = originalDocument;
     globalThis.MutationObserver = originalMutationObserver;
+    globalThis.getComputedStyle = originalGetComputedStyle;
   }
 });
