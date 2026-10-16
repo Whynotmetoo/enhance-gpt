@@ -9,8 +9,18 @@ import {
 import type { DomOutlineTurn, OutlineItem } from "./types";
 import { compareDocumentOrder, cssEscape, headingLevel, normalizeLabel } from "./utils";
 
+function visibleConversationRoot(): HTMLElement | null {
+  // ChatGPT keeps hidden previous conversations mounted during SPA navigation.
+  // Collection and observation must resolve the same currently visible root.
+  for (const selector of ["#thread", "main"]) {
+    const root = Array.from(document.querySelectorAll<HTMLElement>(selector)).find(isVisible);
+    if (root) return root;
+  }
+  return null;
+}
+
 export function collectTurnElements(): HTMLElement[] {
-  const root = document.querySelector<HTMLElement>("#thread") ?? document.querySelector<HTMLElement>("main");
+  const root = visibleConversationRoot();
   if (!root) {
     return [];
   }
@@ -40,7 +50,7 @@ export function collectTurnElements(): HTMLElement[] {
 }
 
 export function conversationMutationRoot(): HTMLElement {
-  return document.querySelector<HTMLElement>("#thread") ?? document.querySelector<HTMLElement>("main") ?? document.body;
+  return visibleConversationRoot() ?? document.body;
 }
 
 export function observeConversationMutations(
@@ -69,7 +79,12 @@ export function observeConversationMutations(
 
   update();
   conversationObserver.observe(mutationRoot, mutationOptions);
-  rootObserver.observe(document.body, { childList: true, subtree: true });
+  rootObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class", "style", "hidden", "aria-hidden"]
+  });
 
   return () => {
     conversationObserver.disconnect();
